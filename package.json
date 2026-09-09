@@ -1,8 +1,11 @@
 {
   "name": "astra",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "private": true,
   "type": "module",
+  "engines": {
+    "node": ">=24"
+  },
   "scripts": {
     "dev": "vite --host 0.0.0.0",
     "api": "uv run uvicorn astra.app:app --host 127.0.0.1 --port 7861 --reload",

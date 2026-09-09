@@ -26,10 +26,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15   # observed runtime under 2 min; kills a hung upstream read
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # uv takes the interpreter from requires-python in pyproject.toml, so this
       # job cannot drift from the version the deployed function runs.
-      - uses: astral-sh/setup-uv@v5
+      - uses: astral-sh/setup-uv@v10.0.1
         with:
           enable-cache: true
       - run: uv sync --no-dev
