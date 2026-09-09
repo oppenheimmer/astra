@@ -75,6 +75,33 @@ class VercelConfiguration(unittest.TestCase):
         for package in ('fastapi', 'uvicorn', 'requests', 'numpy', 'Pillow'):
             self.assertIn(package, pyproject, f'{package} is imported by the server but not declared')
 
+    def test_object_storage_is_one_bucket_named_consistently_everywhere(self):
+        """The bucket, the Worker binding and the URL the browser reads must agree.
+
+        These live in three languages and no build step connects them, so a
+        rename that misses one leaves the page reading an address nothing
+        publishes to. The data moved off the earth project's bucket, whose token
+        cannot write here, so a leftover reference is a silent write failure.
+        """
+        sync = (astra.ROOT / 'scripts/sync_satellites.sh').read_text()
+        wrangler = (astra.ROOT / 'worker/wrangler.toml').read_text()
+        api = (astra.ROOT / 'src/api.ts').read_text()
+
+        bucket = re.search(r'BUCKET="\$\{R2_BUCKET:-([\w-]+)\}"', sync).group(1)
+        self.assertEqual(bucket, 'sky-data')
+        self.assertEqual(re.search(r'bucket_name\s*=\s*"([\w-]+)"', wrangler).group(1), bucket)
+        self.assertEqual(re.search(r'^name\s*=\s*"([\w-]+)"', wrangler, re.M).group(1), bucket,
+                         'the Worker is named after its bucket, and the URL depends on that name')
+
+        url = re.search(r'SATELLITE_DATA_URL\s*=\s*\n?\s*"([^"]+)"', api).group(1)
+        self.assertTrue(url.startswith(f'https://{bucket}.'), f'{url} does not address the {bucket} Worker')
+        self.assertTrue(url.endswith('/satellites.json'), 'the object sits at the bucket root')
+
+        for path in ('scripts/sync_satellites.sh', 'src/api.ts', 'worker/wrangler.toml',
+                     'worker/index.js', '.github/workflows/refresh-satellites.yml'):
+            self.assertNotIn('earth-data', (astra.ROOT / path).read_text(),
+                             f'{path} still points at the earth project bucket')
+
     def test_the_bundle_keeps_the_backend_and_drops_the_frontend(self):
         excluded = self.config['functions']['api/index.py']['excludeFiles']
         directories = set(re.search(r'\{(.+?)\}', excluded).group(1).split(','))

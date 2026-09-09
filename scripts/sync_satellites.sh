@@ -11,13 +11,13 @@
 # republish the group it could not refresh. Pulling them down first is what makes
 # a partial refresh safe.
 #
-# The bucket is shared with the earth project, which owns the keys at the root;
-# everything here lives under the astra/ prefix and touches nothing else.
+# The bucket holds nothing else, so the objects sit at its root: satellites.json
+# is what the browser reads, and source/ keeps the per-group files a later run
+# falls back on.
 #
-# Cache-Control is set explicitly on every object, and must stay that way. The
-# Worker in front of this bucket falls back to a one-year immutable policy for
-# any key it is not told about, which would pin a refreshing dataset in caches
-# until the URL changed.
+# Cache-Control is set explicitly on every object. The Worker in worker/ falls
+# back to the same short policy, so an object that somehow arrives without one
+# still expires, but relying on that would hide a mistake rather than prevent it.
 #
 # R2 is S3-compatible, so this uses the AWS CLI (preinstalled on GitHub runners;
 # locally: pip install awscli). Required environment:
@@ -25,19 +25,16 @@
 #   R2_ACCOUNT_ID             Cloudflare account id
 #   AWS_ACCESS_KEY_ID         R2 API token key
 #   AWS_SECRET_ACCESS_KEY     R2 API token secret
-#   R2_BUCKET                 bucket name, default "earth-data"
-#   R2_PREFIX                 key prefix, default "astra"
+#   R2_BUCKET                 bucket name, default "sky-data"
 #
-# Locally the ids can come from the earth project's git-ignored file, which is
-# the same R2 token this uses:
-#   set -a && source ~/Desktop/work/earth/.env/r2 && set +a && ./scripts/sync_satellites.sh
+# The token must be scoped to the sky-data bucket. The earth project's token is
+# scoped to its own bucket and cannot write here.
 set -euo pipefail
 
 : "${R2_ACCOUNT_ID:?set R2_ACCOUNT_ID}"
 : "${AWS_ACCESS_KEY_ID:?set AWS_ACCESS_KEY_ID}"
 : "${AWS_SECRET_ACCESS_KEY:?set AWS_SECRET_ACCESS_KEY}"
-BUCKET="${R2_BUCKET:-earth-data}"
-PREFIX="${R2_PREFIX:-astra}"
+BUCKET="${R2_BUCKET:-sky-data}"
 
 # A wrong account id otherwise surfaces much later as "Invalid endpoint" with the
 # value masked in CI logs, which says nothing about which secret is at fault.
@@ -58,8 +55,8 @@ mkdir -p "$WORK/source"
 CACHE_CONTROL="public, max-age=1800, must-revalidate"
 s3() { aws s3 "$@" --endpoint-url "$ENDPOINT" --only-show-errors; }
 
-echo "Pulling previous state from s3://${BUCKET}/${PREFIX}/source/"
-if s3 sync "s3://${BUCKET}/${PREFIX}/source/" "$WORK/source/"; then
+echo "Pulling previous state from s3://${BUCKET}/source/"
+if s3 sync "s3://${BUCKET}/source/" "$WORK/source/"; then
     echo "  pulled $(find "$WORK/source" -name '*.json' | wc -l) previous file(s)"
 else
     # Reachable but empty is a first run; unreachable is not, and the refresh
@@ -72,10 +69,10 @@ echo "Refreshing from CelesTrak"
 # shellcheck disable=SC2086
 $PYTHON scripts/refresh_satellites.py --dir "$WORK"
 
-echo "Publishing to s3://${BUCKET}/${PREFIX}/"
+echo "Publishing to s3://${BUCKET}/"
 for f in "$WORK/satellites.json" "$WORK"/source/*.json; do
     [ -e "$f" ] || continue
-    key="${PREFIX}/${f#"$WORK/"}"
+    key="${f#"$WORK/"}"
     s3 cp "$f" "s3://${BUCKET}/${key}" \
         --content-type "application/json" \
         --cache-control "$CACHE_CONTROL"

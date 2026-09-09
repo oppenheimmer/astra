@@ -63,21 +63,30 @@ Orbital elements are different. They are only usable near their epoch, so the ch
 `.github/workflows/refresh-satellites.yml` runs twice a day. It fetches the CelesTrak groups, merges and de-duplicates them, and publishes one payload to Cloudflare R2, which the browser reads directly through the CDN in front of the bucket. No redeploy is involved, and the origin is not touched.
 
 ```sh
-set -a && source ~/Desktop/work/earth/.env/r2 && set +a
+export R2_ACCOUNT_ID=... AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...
 ./scripts/sync_satellites.sh          # same cycle, by hand
 ```
 
-The bucket is shared with the earth project, which owns the keys at the root. Everything here lives under `astra/`: `astra/satellites.json` is the merged payload the browser loads, and `astra/source/` holds the per-group files a later run falls back on.
+Storage is the `sky-data` bucket, which holds nothing else, so the objects sit at its root. `satellites.json` is the merged payload the browser loads; `source/` keeps the per-group files a later run falls back on.
 
-Partial failure is expected. CelesTrak answers 403 when the caller already holds its newest elements for a group, which the refresh treats as "nothing to do" rather than an outage, republishing that group's previous file. A first run against an empty prefix falls back to the copies in `public/data/`. Those bundled copies are also what `/api/satellites` serves, which is where the browser looks if the published snapshot is unreachable.
+The bucket is not read over its built-in `r2.dev` address, which is HTTP/1.1, is not edge cached, and which Cloudflare documents as rate limited and unsuitable for production. `worker/` is a small Cloudflare Worker bound to the bucket that serves it over HTTP/2 and HTTP/3 with edge caching and CORS, deployed separately:
 
-Three repository secrets drive the upload, matching the names the earth project already uses: `R2_ACCOUNT_ID`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. They are only ever exposed to the scheduled and manual triggers, never to pull requests.
+```sh
+cd worker && npx wrangler deploy     # browser OAuth on first run
+```
+
+Objects are stored uncompressed and the edge compresses them per client, which is why nothing here sets `Content-Encoding`. The Worker cannot re-encode a body it has already compressed, and the runtime has no brotli decompressor, so storing compressed bodies ends with clients receiving compressed bytes labelled `application/json`.
+
+Partial failure is expected. CelesTrak answers 403 when the caller already holds its newest elements for a group, which the refresh treats as "nothing to do" rather than an outage, republishing that group's previous file. A first run against an empty bucket falls back to the copies in `public/data/`. Those bundled copies are also what `/api/satellites` serves, which is where the browser looks if the published snapshot is unreachable.
+
+Three repository secrets drive the upload: `R2_ACCOUNT_ID`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The last two are an R2 API token scoped to `sky-data`; a token scoped to another bucket fails the pull step with `AccessDenied` rather than publishing a partial result. They are only ever exposed to the scheduled and manual triggers, never to pull requests.
 
 ## Project layout
 
 - `src/` — React frontend. `App.tsx` wires state together; `api.ts` is the only place that calls the server; hooks (`use*.ts`) own the observing clock, catalogue and satellite loading, terrain requests and the telescope simulator; `TimeDeck`, `TelescopePanel`, `ObjectExplorer`, `LocationDialog` and `AboutDialog` are the large panels.
 - `astra/` — FastAPI backend. `app.py` defines the routes; `feeds.py` is the rate-limited snapshot cache behind the satellite feeds; `coalesce.py` shares one computation between identical concurrent terrain or Gaia requests; `terrain.py` and `deep_stars.py` do the numerical work.
 - `api/index.py` — Vercel entry point.
+- `worker/` — Cloudflare Worker serving the `sky-data` bucket to the browser.
 - `public/data/` — bundled catalogues and their licences. `scripts/` rebuilds them.
 - `tests/` — vitest (`*.test.ts[x]`) and unittest (`test_*.py`).
 

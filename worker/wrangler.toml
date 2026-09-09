@@ -1,0 +1,20 @@
+# Deploy with:  cd worker && npx wrangler deploy
+#
+# wrangler authenticates through a browser OAuth login the first time. That is a
+# separate credential from the S3-compatible key pair the refresh job uses, which
+# can write objects but cannot deploy a Worker.
+#
+# The result is https://sky-data.<your-subdomain>.workers.dev. Put that, with a
+# trailing slash and the object name, into SATELLITE_DATA_URL in src/api.ts.
+
+name = "sky-data"
+main = "index.js"
+compatibility_date = "2026-09-09"
+
+# A direct binding to the bucket, not a round trip through its public endpoint.
+[[r2_buckets]]
+binding = "BUCKET"
+bucket_name = "sky-data"
+
+[observability]
+enabled = true

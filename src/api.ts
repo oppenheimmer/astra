@@ -58,14 +58,15 @@ export const fetchBundled = <T>(file: string) =>
   getJSON<T>(`/data/${file}`, undefined, "Catalogue could not be loaded.");
 
 /**
- * Fresh orbital elements live in object storage, refreshed on a schedule by
- * `.github/workflows/refresh-satellites.yml`. The browser reads them directly:
- * the CDN in front of the bucket is closer and cheaper than a serverless
- * function, and the file is already merged and de-duplicated, so this replaces
- * both the bundled snapshots and the older `/api/satellites` round trip.
+ * Fresh orbital elements live in the sky-data R2 bucket, refreshed on a schedule
+ * by `.github/workflows/refresh-satellites.yml` and served by the Worker in
+ * `worker/`. The browser reads them directly: the CDN in front of the bucket is
+ * closer and cheaper than a serverless function, and the file is already merged
+ * and de-duplicated, so this replaces both the bundled snapshots and the older
+ * `/api/satellites` round trip.
  */
 export const SATELLITE_DATA_URL =
-  "https://earth-data.globe-climatesim.workers.dev/astra/satellites.json";
+  "https://sky-data.globe-climatesim.workers.dev/satellites.json";
 
 /** Enough of a payload to plot: elements that parse, with a timestamp to age them against. */
 export function validSatelliteData(data: unknown): data is SatelliteData {
