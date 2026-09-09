@@ -23,6 +23,12 @@ dependencies = [
 # httpx backs fastapi.testclient.TestClient, which the HTTP-level tests use.
 dev = ["httpx==0.28.1"]
 
+# Only scripts/sync_satellites.sh needs this, only when publishing to R2 by
+# hand, and it is 150 MB. GitHub's runners ship the AWS CLI already, so the
+# scheduled job never installs it. Kept out of the default sync and fetched on
+# demand with: uv sync --group ops
+ops = ["awscli==1.46.1"]
+
 [tool.uv]
 # The backend is imported from the working tree, never installed. Building it
 # into site-packages would shadow the source with a stale copy and point the

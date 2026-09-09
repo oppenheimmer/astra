@@ -19,8 +19,11 @@
 # back to the same short policy, so an object that somehow arrives without one
 # still expires, but relying on that would hide a mistake rather than prevent it.
 #
-# R2 is S3-compatible, so this uses the AWS CLI (preinstalled on GitHub runners;
-# locally: pip install awscli). Required environment:
+# R2 is S3-compatible, so this uses the AWS CLI. GitHub's runners ship it. It is
+# deliberately not in the default local environment because it is 150 MB and
+# nothing else needs it, so for a manual run first: uv sync --group ops
+#
+# Required environment:
 #
 #   R2_ACCOUNT_ID             Cloudflare account id
 #   AWS_ACCESS_KEY_ID         R2 API token key

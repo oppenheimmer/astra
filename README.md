@@ -66,6 +66,7 @@ Orbital elements are different. They are only usable near their epoch, so the ch
 `.github/workflows/refresh-satellites.yml` runs twice a day. It fetches the CelesTrak groups, merges and de-duplicates them, and publishes one payload to Cloudflare R2, which the browser reads directly through the CDN in front of the bucket. No redeploy is involved, and the origin is not touched.
 
 ```sh
+uv sync --group ops                   # the AWS CLI, kept out of the default env
 export R2_ACCOUNT_ID=... AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...
 ./scripts/sync_satellites.sh          # same cycle, by hand
 ```
