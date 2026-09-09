@@ -45,10 +45,13 @@ npm run test:api       # unittest: terrain geometry, Gaia parsing, feed caching,
 
 `vercel.json` builds the Vite frontend as static files and runs the FastAPI app from `api/index.py` as a Python serverless function. Requests to `/api/*` are rewritten to that function; the 5 MB Gaia overview is served as a pre-compressed static file with a `Content-Encoding: gzip` header instead of passing through the function.
 
+The project is connected to this repository, so a push to `main` deploys production and a pull request gets a preview. Neither needs a local Vercel CLI.
+
 ```sh
-vercel link --project astra
-vercel --prod
+vercel --prod          # only to deploy uncommitted local state
 ```
+
+The connection reads the `origin` remote, which the Vercel CLI cannot parse if it uses an SSH host alias. Point `origin` at `https://github.com/<owner>/<repo>.git` for the length of `vercel git connect`, then set it back.
 
 New projects on a team inherit its Deployment Protection setting. If the production `*.vercel.app` alias redirects to a Vercel login, set the project's Vercel Authentication to "Only Preview Deployments" (Settings → Deployment Protection) or attach a custom domain.
 
