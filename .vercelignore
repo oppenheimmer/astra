@@ -1,0 +1,13 @@
+node_modules
+dist
+.venv
+__pycache__
+.vercel
+tests
+scripts
+test-results
+requirements-dev.txt
+README.md
+.env*
+pyproject.toml
+uv.lock

@@ -1,0 +1,41 @@
+name: refresh-satellites
+
+# Orbital elements are only useful near their epoch: the chart labels anything
+# more than 1.5 days old and refuses to draw past 3 days. Twice a day keeps the
+# published snapshot well inside that window and leaves room for a few failed
+# runs before anything disappears from the map.
+#
+# Times avoid the top of the hour, where GitHub's scheduler is most contended.
+on:
+  schedule:
+    - cron: "20 1 * * *"
+    - cron: "20 13 * * *"
+  workflow_dispatch: {}
+
+# Read-only: this writes to object storage, never back to the repository. The
+# published data is not committed, so the deployment does not need rebuilding.
+permissions:
+  contents: read
+
+concurrency:
+  group: refresh-satellites
+  cancel-in-progress: false   # never kill a half-finished upload
+
+jobs:
+  refresh:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15   # observed runtime under 2 min; kills a hung upstream read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+      # The refresh path imports only astra.satellites and astra.feeds, so it
+      # needs requests alone, not the numpy and Pillow that terrain pulls in.
+      - run: pip install "requests==2.32.5"
+      - name: Refresh from CelesTrak and publish to R2
+        env:
+          R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+        run: ./scripts/sync_satellites.sh

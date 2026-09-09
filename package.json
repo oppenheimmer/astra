@@ -1,0 +1,34 @@
+{
+  "name": "astra",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "api": "uvicorn astra.app:app --host 127.0.0.1 --port 7861 --reload",
+    "build": "tsc -b && vite build",
+    "serve": "uvicorn astra.app:app --host 0.0.0.0 --port 7860",
+    "test": "vitest run",
+    "test:api": "python -m unittest discover -s tests -p 'test_*.py'",
+    "preview": "vite preview --host 0.0.0.0"
+  },
+  "dependencies": {
+    "@js-temporal/polyfill": "^0.5.1",
+    "@photostructure/tz-lookup": "^11.6.1",
+    "astronomy-engine": "^2.1.19",
+    "react": "^19.1.0",
+    "react-dom": "^19.1.0",
+    "satellite.js": "^6.0.1"
+  },
+  "devDependencies": {
+    "@testing-library/dom": "^10.4.1",
+    "@testing-library/react": "^16.3.3",
+    "@types/react": "^19.1.0",
+    "@types/react-dom": "^19.1.0",
+    "@vitejs/plugin-react": "^4.5.0",
+    "jsdom": "^30.0.1",
+    "typescript": "~5.8.3",
+    "vite": "^6.3.5",
+    "vitest": "^3.2.4"
+  }
+}

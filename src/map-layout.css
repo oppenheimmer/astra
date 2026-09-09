@@ -1,0 +1,757 @@
+/* The chart owns the viewport; controls sit in its unused corners. */
+.app-shell {
+  max-width: none;
+  padding: 8px 24px 0;
+}
+.masthead {
+  height: 38px;
+  grid-template-columns: 220px 1fr 280px;
+  align-items: center;
+  gap: 20px;
+}
+.earth-time {
+  display: flex;
+  align-items: baseline;
+  gap: 9px;
+}
+.earth-time .eyebrow {
+  font-size: 9px;
+}
+.clock {
+  font-size: 13px;
+  letter-spacing: 0.4px;
+}
+.date-label {
+  align-self: auto;
+  padding: 0;
+  font-size: 9px;
+}
+.brand {
+  padding: 0;
+}
+.brand h1 {
+  font-size: 16px;
+  letter-spacing: 6px;
+  line-height: 1;
+}
+.location-top {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  font-size: 10px;
+  line-height: 1.2;
+}
+.location-top .eyebrow {
+  font-size: 8px;
+  max-width: 80px;
+  line-height: 1.4;
+}
+.location-top small {
+  font-size: 9px;
+}
+.workspace {
+  grid-template-columns: 210px minmax(0, 1fr) 280px;
+  gap: 20px;
+  height: calc(100dvh - 90px);
+  min-height: 480px;
+  padding: 12px 0 8px;
+}
+.left-rail,
+.right-rail {
+  padding-top: 3px;
+}
+.sky-stage {
+  position: relative;
+}
+.map-area {
+  position: absolute;
+  inset: 0;
+  min-height: 0;
+}
+.stage-top {
+  position: absolute;
+  top: 0;
+  right: 0;
+  left: auto;
+  margin: 0;
+  padding: 0;
+  z-index: 3;
+}
+.search-box {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: min(300px, calc(100% - 222px));
+  height: 27px;
+  margin: 0;
+  background: var(--paper);
+}
+.search-box input {
+  font-size: 10px;
+}
+.search-results {
+  top: 27px;
+  width: max(100%, 330px);
+}
+.map-readout {
+  top: 44px;
+  left: 0;
+  font-size: 9px;
+  gap: 6px;
+}
+.sky-condition {
+  color: var(--ink);
+  padding-bottom: 5px;
+  letter-spacing: 0.8px;
+}
+.zoom-controls {
+  right: 0;
+  bottom: 46px;
+}
+.map-caption {
+  position: absolute;
+  bottom: 3px;
+  left: 0;
+  right: 0;
+  padding: 0;
+  border: 0;
+  pointer-events: none;
+  font-size: 8px;
+}
+.scope-strip {
+  display: none;
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  padding: 0;
+  align-items: end;
+  gap: 12px;
+  flex-direction: row;
+}
+.has-telescope .scope-strip {
+  display: flex;
+}
+.has-telescope .map-caption {
+  bottom: 43px;
+}
+.scope-strip .eyebrow {
+  font-size: 8px;
+}
+.scope-strip strong {
+  font-size: 9px;
+  margin-top: 4px;
+}
+.scope-actions {
+  width: auto;
+  gap: 6px;
+}
+.scope-actions button {
+  flex: none;
+  background: var(--paper);
+  font-size: 9px;
+}
+.scope-actions button:hover {
+  background: var(--faint);
+}
+.daylight-note {
+  bottom: 23px;
+  font-size: 8px;
+}
+.has-telescope .daylight-note {
+  bottom: 63px;
+}
+.time-deck {
+  min-height: 44px;
+  height: 44px;
+  padding: 7px 0;
+  border-bottom: 0;
+  gap: 14px;
+}
+.time-deck .day-slider {
+  max-width: none;
+}
+.toast {
+  bottom: 59px;
+}
+
+/* Stipple illustrations share the chart's ink and annotation language. */
+.galaxy-stipple {
+  fill: var(--ink);
+}
+.galaxy-atlas svg {
+  overflow: hidden;
+}
+.galaxy-guide {
+  stroke: var(--rule);
+  fill: none;
+  stroke-width: 0.65;
+  stroke-dasharray: 1 4;
+}
+.galaxy-annotation {
+  stroke: var(--muted);
+  stroke-width: 0.65;
+  fill: none;
+}
+.galaxy-marker {
+  fill: var(--paper);
+  stroke: var(--ink);
+  stroke-width: 0.9;
+}
+.galaxy-marker-core {
+  fill: var(--ink);
+}
+.galaxy-caption {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 7px 0 0;
+  color: var(--muted);
+  font-size: 8px;
+}
+.context-diagram .galaxy-label {
+  font-size: 8px;
+  fill: var(--muted-strong);
+}
+.context-diagram .galaxy-distance {
+  font-size: 11px;
+  fill: var(--ink);
+}
+.galaxy-scale {
+  stroke: var(--dim);
+  fill: none;
+  stroke-width: 0.7;
+}
+.galaxy-atlas .diagram-note {
+  padding-top: 9px;
+}
+
+@media (min-width: 1700px) {
+  .app-shell {
+    padding-left: 28px;
+    padding-right: 28px;
+  }
+  .workspace {
+    grid-template-columns: 220px minmax(0, 1fr) 300px;
+    gap: 24px;
+  }
+}
+@media (max-width: 1250px) {
+  .app-shell {
+    padding: 8px 18px 0;
+  }
+  .workspace {
+    grid-template-columns: 185px minmax(0, 1fr) 248px;
+    gap: 16px;
+  }
+  .masthead {
+    grid-template-columns: 185px 1fr 248px;
+    gap: 16px;
+  }
+  .location-top small,
+  .date-label {
+    display: none;
+  }
+  .search-box input {
+    font-size: 9px;
+  }
+  .scope-actions button {
+    font-size: 8px;
+    padding: 5px;
+  }
+  .scope-strip strong {
+    font-size: 8px;
+  }
+  .map-caption span + span {
+    display: none;
+  }
+}
+@media (min-width: 761px) and (max-width: 1000px) {
+  .app-shell {
+    padding: 6px 12px 0;
+  }
+  .workspace {
+    grid-template-columns: 166px minmax(0, 1fr) 216px;
+    gap: 12px;
+  }
+  .masthead {
+    grid-template-columns: 166px 1fr 216px;
+    gap: 12px;
+  }
+  .scope-strip {
+    align-items: start;
+    flex-direction: column;
+    gap: 6px;
+  }
+  .scope-strip .eyebrow {
+    display: none;
+  }
+  .has-telescope .map-caption {
+    bottom: 54px;
+    font-size: 7px;
+  }
+  .has-telescope .zoom-controls {
+    bottom: 75px;
+  }
+  .search-box {
+    width: calc(100% - 222px);
+  }
+  .search-box kbd {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .app-shell {
+    padding: 6px 12px 0;
+  }
+  .masthead {
+    height: 34px;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+  }
+  .brand {
+    align-items: center;
+  }
+  .brand h1 {
+    font-size: 15px;
+    letter-spacing: 4px;
+  }
+  .earth-time {
+    display: none;
+  }
+  .location-top {
+    font-size: 9px;
+    gap: 5px;
+  }
+  .location-top .eyebrow,
+  .location-top small {
+    display: none;
+  }
+  .mobile-tabs {
+    margin-top: 6px;
+  }
+  .mobile-tabs button {
+    font-size: 9px;
+    min-height: 26px;
+    padding: 4px;
+  }
+  .workspace {
+    display: block;
+    height: auto;
+    min-height: 0;
+    padding: 8px 0;
+  }
+  .mobile-sky .sky-stage {
+    height: calc(100dvh - 168px);
+    min-height: 360px;
+  }
+  .stage-top {
+    flex-direction: row;
+  }
+  .search-box {
+    width: calc(100% - 222px);
+  }
+  .search-box input {
+    font-size: 9px;
+  }
+  .search-results {
+    width: calc(100vw - 24px);
+    max-height: 280px;
+  }
+  .map-readout {
+    top: 39px;
+    font-size: 8px;
+    gap: 5px;
+  }
+  .map-caption {
+    font-size: 7px;
+  }
+  .scope-strip {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 7px;
+  }
+  .scope-strip > div:first-child {
+    display: flex;
+    align-items: baseline;
+    justify-content: space-between;
+    gap: 10px;
+  }
+  .scope-strip strong {
+    margin: 0;
+  }
+  .scope-actions {
+    width: 100%;
+  }
+  .scope-actions button {
+    flex: 1;
+  }
+  .has-telescope .map-caption {
+    bottom: 58px;
+  }
+  .zoom-controls {
+    bottom: 35px;
+  }
+  .has-telescope .zoom-controls {
+    bottom: 76px;
+  }
+  .has-telescope .daylight-note {
+    bottom: 76px;
+    font-size: 6px;
+  }
+  .time-deck {
+    height: 80px;
+    min-height: 80px;
+    padding: 7px 0;
+    gap: 7px;
+  }
+  .toast {
+    bottom: 89px;
+  }
+  .right-rail .galaxy-atlas svg {
+    max-height: 320px;
+  }
+}
+.solar-controls {
+  display: flex;
+  gap: 0;
+  margin-top: 12px;
+}
+.solar-controls button {
+  flex: 1;
+  font-size: 8px;
+  min-height: 23px;
+  padding: 4px;
+}
+.solar-controls button + button {
+  border-left: 0;
+}
+.solar-distance {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 4px 0 9px;
+  font-size: 8px;
+  color: var(--muted);
+}
+.solar-distance strong {
+  color: var(--ink);
+  font-size: 10px;
+  font-weight: 400;
+}
+.satellite-sources {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px 15px;
+  margin: -7px 0 17px;
+  font-size: 8px;
+  color: var(--muted);
+}
+.object-stats strong {
+  overflow-wrap: anywhere;
+}
+
+/* Personal sky: an upright horizon-to-zenith strip with a quiet turning control. */
+.heading-controls {
+  position: absolute;
+  bottom: 26px;
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  align-items: center;
+  background: var(--paper);
+}
+.heading-controls span {
+  min-width: 100px;
+  text-align: center;
+  font-size: 10px;
+}
+.heading-controls button {
+  width: 34px;
+  min-height: 30px;
+  padding: 4px;
+}
+.personal-stage .map-readout {
+  flex-direction: row;
+  gap: 14px;
+}
+.personal-stage .zoom-controls {
+  bottom: 110px;
+}
+.personal-stage .daylight-note {
+  bottom: 65px;
+}
+.personal-stage.has-telescope .heading-controls {
+  bottom: 64px;
+}
+.personal-stage.has-telescope .zoom-controls {
+  bottom: 148px;
+}
+.personal-stage.has-telescope .daylight-note {
+  bottom: 103px;
+}
+@media (max-width: 1000px) {
+  .view-switch button {
+    padding: 5px 5px;
+    font-size: 8px;
+  }
+  .search-box {
+    width: calc(100% - 184px);
+  }
+  .search-box kbd {
+    display: none;
+  }
+  .search-box {
+    gap: 4px;
+  }
+  .personal-stage .map-readout {
+    gap: 9px;
+  }
+}
+
+.terrain-controls {
+  position: absolute;
+  right: 0;
+  top: 36px;
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+.terrain-controls button {
+  font-size: 7px;
+  min-height: 21px;
+  padding: 4px 6px;
+  background: var(--paper);
+}
+.terrain-controls button[aria-pressed="true"] {
+  border-color: var(--border);
+}
+.terrain-controls span:not(:empty) {
+  position: absolute;
+  right: 0;
+  top: 26px;
+  width: 190px;
+  font-size: 7px;
+  text-align: right;
+  color: var(--muted);
+  background: var(--paper);
+  pointer-events: none;
+}
+.personal-stage .map-readout {
+  max-width: calc(100% - 112px);
+  flex-wrap: wrap;
+}
+.address-lookup {
+  margin: 20px 0;
+}
+.address-search-row {
+  display: flex;
+  gap: 8px;
+  margin-top: 7px;
+}
+.address-search-row input {
+  flex: 1;
+  min-width: 0;
+  margin-top: 0;
+}
+.address-search-row button {
+  flex: none;
+  font-size: 9px;
+}
+.address-results {
+  border-bottom: 1px solid var(--rule);
+}
+.address-results button {
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  border-top: 1px solid var(--rule);
+  padding: 10px 4px;
+  font-size: 10px;
+}
+.lookup-elevation {
+  margin: -4px 0 16px;
+  font-size: 9px;
+}
+.terrain-obstruction {
+  font-size: 9px;
+  border-left: 2px solid var(--muted);
+  padding-left: 8px;
+  color: var(--muted);
+}
+.location-modal {
+  max-height: calc(100dvh - 40px);
+  overflow-y: auto;
+}
+@media (max-width: 760px) {
+  .personal-stage .map-readout {
+    gap: 4px 8px;
+    font-size: 7px;
+  }
+  .terrain-controls {
+    top: 34px;
+  }
+  .location-modal {
+    max-height: calc(100dvh - 24px);
+  }
+}
+.satellite-trails-control {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  margin-top: 10px;
+  font-size: 9px;
+}
+.satellite-trails-control [role="group"] { display: flex; }
+.satellite-trails-control button { padding: 5px 8px; }
+.satellite-trails-control button + button { margin-left: -1px; }
+.satellite-trails-control button[aria-pressed="true"] {
+  background: var(--ink);
+  color: var(--paper);
+  border-color: var(--ink);
+}
+.star-cutoff {
+  margin: 12px 0 0;
+  padding-top: 10px;
+  border-top: 1px solid var(--rule);
+}
+.star-cutoff .range-heading {
+  margin-bottom: 7px;
+  font-size: 9px;
+}
+.star-cutoff output {
+  font-size: 10px;
+  color: var(--ink);
+}
+.star-cutoff input {
+  width: 100%;
+}
+.star-cutoff .small-note {
+  margin: 7px 0 0;
+  font-size: 8px;
+  line-height: 1.5;
+}
+.star-cutoff.disabled {
+  opacity: 0.5;
+}
+
+.deep-star-status button {
+  display: block;
+  width: 100%;
+  margin-top: 7px;
+  padding: 5px;
+  font-size: 8px;
+}
+.object-heading h2.catalogue-star-name {
+  font-size: 19px;
+  line-height: 1.4;
+  overflow-wrap: anywhere;
+}
+
+.galaxy-symbol {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border: 1px dashed currentColor;
+  border-radius: 50%;
+  vertical-align: -1px;
+}
+
+/* Both the chart and native controls use the same restrained night palette. */
+.left-rail [hidden] { display: none; }
+.sky-controls { display: flex; flex-direction: column; gap: inherit; }
+.control-panel-tabs { display: flex; }
+.control-panel-tabs button { flex: 1; font-size: 10px; padding: 7px 4px; }
+.control-panel-tabs button + button { border-left: 0; }
+.layer-row .object-symbol { flex: 0 0 21px; }
+.layer-row .object-symbol svg { display: block; width: 17px; height: 17px; margin: auto; fill: none; stroke: currentColor; stroke-width: 1; stroke-linejoin: round; }
+.telescope-blueprint { margin: 12px 0 13px; }
+.telescope-blueprint svg { display: block; width: 100%; }
+.telescope-blueprint svg text { font: 9px Departure, monospace; fill: var(--muted); stroke: none; }
+.blueprint-guide { fill: none; stroke: var(--rule); stroke-width: .65; stroke-dasharray: 2 4; }
+.blueprint-surface { stroke: var(--muted); stroke-width: .75; stroke-linejoin: round; }
+.blueprint-surface.tube { fill: var(--paper); stroke: var(--ink); stroke-width: 1.05; }
+.blueprint-surface.metal, .blueprint-surface.leg { fill: var(--paper); }
+.blueprint-surface.mount, .blueprint-surface.weight, .blueprint-surface.glass { fill: var(--faint); stroke: var(--ink); }
+.blueprint-surface.dark { fill: var(--muted); stroke: var(--ink); }
+.blueprint-surface.cap { stroke-width: .9; }
+.blueprint-surface.detail { fill: none; stroke: var(--dim); stroke-width: .55; }
+.blueprint-axis-readouts { display: grid; grid-template-columns: 1fr 1fr; border-top: 1px solid var(--rule); padding-top: 3px; }
+.blueprint-axis-readouts > svg + svg { border-left: 1px solid var(--rule); }
+.blueprint-dial { fill: none; stroke: var(--muted); stroke-width: .8; }
+.blueprint-dial .dial-inner { stroke: var(--rule); stroke-width: .5; }
+.blueprint-dial .motor-needle { stroke: var(--ink); stroke-width: 1.2; }
+.blueprint-dial .motor-hub { fill: var(--paper); stroke: var(--ink); }
+.blueprint-dial .axis-value { fill: var(--ink); font-size: 12px; }
+.telescope-blueprint figcaption { display: flex; justify-content: space-between; font-size: 7px; color: var(--muted); margin-top: 3px; letter-spacing: .04em; }
+.motor-buttons button { font-size: 9px; padding: 6px 3px; }
+.motor-buttons button[aria-pressed="true"] { background: var(--faint); border-color: var(--border); }
+.telescope-target { margin: 20px 0 9px; }
+.telescope-target strong { display: block; overflow-wrap: anywhere; font-size: 13px; font-weight: normal; margin: 6px 0; }
+.telescope-target small { color: var(--muted); font-size: 8px; }
+.telescope-slew { width: 100%; display: flex; justify-content: space-between; font-size: 10px; }
+.telescope-pointing { display: grid; grid-template-columns: 1fr; gap: 5px; margin: 6px 0 14px; }
+.telescope-pointing button { width: 100%; padding: 7px 3px; text-align: left; font-size: 9px; }
+.telescope-readout { border-block: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 9px 0; margin: 0 0 15px; font-size: 9px; color: var(--muted); }
+.telescope-readout span:last-child { width: 100%; font-size: 8px; }
+:root[data-theme="dark"] {
+  --paper: #141513;
+  --ink: #e1e3da;
+  --muted: #aeb2a6;
+  --rule: #41473b;
+  --faint: #292d24;
+  --dark: #ecefe5;
+  --hover: #2c3027;
+  --border: #666e5e;
+  --dim: #93998b;
+  --muted-strong: #c0c5b9;
+  --button-hover-ink: #f0f2e9;
+  --grid: #383e32;
+  --soft-shadow: #00000066;
+  --backdrop: #0d100ddd;
+  color-scheme: dark;
+}
+.masthead {
+  grid-template-columns: 210px minmax(0, 1fr) auto 66px;
+}
+.theme-toggle {
+  min-height: 25px;
+  padding: 4px 5px;
+  font-size: 9px;
+  white-space: nowrap;
+}
+@media (max-width: 1250px) {
+  .masthead {
+    grid-template-columns: 185px minmax(0, 1fr) auto 66px;
+  }
+}
+@media (min-width: 761px) and (max-width: 1000px) {
+  .masthead {
+    grid-template-columns: 166px minmax(0, 1fr) auto 58px;
+  }
+  .location-top .eyebrow {
+    display: none;
+  }
+}
+@media (max-width: 760px) {
+  .masthead {
+    grid-template-columns: max-content minmax(0, 1fr) 58px;
+  }
+  .location-top {
+    min-width: 0;
+    max-width: 100%;
+  }
+  .location-top > span:not(.eyebrow) {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .brand {
+    align-items: flex-start;
+  }
+}
