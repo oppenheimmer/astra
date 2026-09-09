@@ -45,21 +45,35 @@ class VercelConfiguration(unittest.TestCase):
             self.assertIn(f'public/data/{name}', command, f'{name} is read at import but never copied')
             self.assertTrue((astra.DATA / name).is_file())
 
-    def test_the_python_version_is_pinned_to_the_one_used_everywhere_else(self):
-        """Vercel reads only .python-version, pyproject.toml or Pipfile.lock.
+    def test_the_python_version_is_declared_once_and_pins_the_runtime(self):
+        """Vercel reads the version from pyproject.toml, .python-version or Pipfile.lock.
 
-        With none of them the serverless runtime silently falls back to 3.12
-        while the build still reports 3.14, so removing this file changes what
-        production runs without failing anything. There is no project-level
-        setting to pin it instead.
+        With none of them the serverless runtime silently falls back to an older
+        interpreter while the build log still reports the newer one, so removing
+        the declaration changes what production runs without failing anything.
+        There is no project-level setting to pin it instead.
+
+        It is declared in pyproject.toml alone. Nothing else may name a Python
+        version: uv takes the interpreter from requires-python, so a literal in a
+        workflow could disagree with the deployed runtime and still look correct.
         """
-        pin = (astra.ROOT / '.python-version').read_text().strip()
-        self.assertEqual(pin, '3.14')
-        workflows = (astra.ROOT / '.github/workflows').glob('*.yml')
-        used = {pin}
-        for workflow in workflows:
-            used.update(re.findall(r'python-version:\s*"([^"]+)"', workflow.read_text()))
-        self.assertEqual(used, {'3.14'}, 'local, CI and deploy must agree on one version')
+        pyproject = (astra.ROOT / 'pyproject.toml').read_text()
+        pinned = re.search(r'requires-python\s*=\s*"([^"]+)"', pyproject)
+        self.assertIsNotNone(pinned, 'pyproject.toml must declare requires-python')
+        self.assertEqual(pinned.group(1), '==3.14.*')
+        self.assertFalse((astra.ROOT / '.python-version').exists(),
+                         'the version lives in pyproject.toml; a second copy can disagree with it')
+        for workflow in (astra.ROOT / '.github/workflows').glob('*.yml'):
+            self.assertNotIn('python-version:', workflow.read_text(),
+                             f'{workflow.name} names a Python version instead of taking it from pyproject.toml')
+
+    def test_the_python_dependencies_are_declared_once(self):
+        """requirements.txt used to carry these, and a second list drifts from the first."""
+        for stale in ('requirements.txt', 'requirements-dev.txt'):
+            self.assertFalse((astra.ROOT / stale).exists(), f'{stale} duplicates pyproject.toml')
+        pyproject = (astra.ROOT / 'pyproject.toml').read_text()
+        for package in ('fastapi', 'uvicorn', 'requests', 'numpy', 'Pillow'):
+            self.assertIn(package, pyproject, f'{package} is imported by the server but not declared')
 
     def test_the_bundle_keeps_the_backend_and_drops_the_frontend(self):
         excluded = self.config['functions']['api/index.py']['excludeFiles']

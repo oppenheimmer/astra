@@ -1,0 +1,31 @@
+# Single source of truth for the Python side: the interpreter version, the
+# runtime dependencies and the test-only extras.
+#
+# The version matters beyond convention. Vercel reads it from here, from
+# .python-version or from Pipfile.lock, and from nowhere else; there is no
+# project setting for it. With none of them present the serverless runtime
+# silently drops to an older interpreter while the build log still reports this
+# one, so this file is what keeps local, CI and production on the same version.
+[project]
+name = "astra"
+version = "1.1.0"
+description = "Starmap backend: orbital, terrain and Gaia data for the observing desk"
+requires-python = "==3.14.*"
+dependencies = [
+    "fastapi==0.116.1",
+    "uvicorn==0.35.0",
+    "requests==2.32.5",
+    "numpy==2.3.3",
+    "Pillow==11.3.0",
+]
+
+[dependency-groups]
+# httpx backs fastapi.testclient.TestClient, which the HTTP-level tests use.
+dev = ["httpx==0.28.1"]
+
+[tool.uv]
+# The backend is imported from the working tree, never installed. Building it
+# into site-packages would shadow the source with a stale copy and point the
+# deployment tests, which resolve paths relative to the package, at the wrong
+# tree entirely.
+package = false

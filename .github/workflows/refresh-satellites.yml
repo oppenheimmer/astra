@@ -27,12 +27,12 @@ jobs:
     timeout-minutes: 15   # observed runtime under 2 min; kills a hung upstream read
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      # uv takes the interpreter from requires-python in pyproject.toml, so this
+      # job cannot drift from the version the deployed function runs.
+      - uses: astral-sh/setup-uv@v5
         with:
-          python-version: "3.14"
-      # The refresh path imports only astra.satellites and astra.feeds, so it
-      # needs requests alone, not the numpy and Pillow that terrain pulls in.
-      - run: pip install "requests==2.32.5"
+          enable-cache: true
+      - run: uv sync --no-dev
       - name: Refresh from CelesTrak and publish to R2
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}

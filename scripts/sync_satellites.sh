@@ -46,7 +46,8 @@ if ! printf '%s' "$R2_ACCOUNT_ID" | grep -Eq '^[0-9a-f]{32}$'; then
     exit 1
 fi
 ENDPOINT="https://${R2_ACCOUNT_ID}.r2.cloudflarestorage.com"
-PYTHON="${PYTHON:-python3}"
+# Word-split on purpose below: the default is a multi-word command.
+PYTHON="${PYTHON:-uv run python}"
 
 cd "$(dirname "$0")/.."
 WORK="build/satellites"
@@ -68,7 +69,8 @@ else
 fi
 
 echo "Refreshing from CelesTrak"
-"$PYTHON" scripts/refresh_satellites.py --dir "$WORK"
+# shellcheck disable=SC2086
+$PYTHON scripts/refresh_satellites.py --dir "$WORK"
 
 echo "Publishing to s3://${BUCKET}/${PREFIX}/"
 for f in "$WORK/satellites.json" "$WORK"/source/*.json; do

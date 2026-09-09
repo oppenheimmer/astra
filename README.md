@@ -23,13 +23,12 @@ An interactive sky map and telescope-controller prototype for an Orion Optics OM
 
 ## Run locally
 
-Node 22 or later and Python 3.11 or later.
+Node 22 or later, and [uv](https://docs.astral.sh/uv/) for the Python side. `uv sync` creates the virtualenv and fetches the interpreter named in `pyproject.toml`, so no Python install is needed first.
 
 ```sh
 npm ci
+uv sync
 npm run build
-python3 -m venv .venv && source .venv/bin/activate
-pip install -r requirements-dev.txt
 npm run serve          # uvicorn astra.app:app on http://localhost:7860
 ```
 
@@ -53,7 +52,7 @@ vercel --prod
 
 New projects on a team inherit its Deployment Protection setting. If the production `*.vercel.app` alias redirects to a Vercel login, set the project's Vercel Authentication to "Only Preview Deployments" (Settings → Deployment Protection) or attach a custom domain.
 
-Everything runs on Python 3.14: the local virtualenv, the GitHub Actions jobs and the deployed function. The one-line `.python-version` is what pins the last of those, and it has to stay. Vercel reads only that file, `pyproject.toml` or `Pipfile.lock`, and offers no project setting for it; with none present the serverless runtime quietly drops to 3.12 while the build log still reports 3.14.
+The Python version and dependencies are declared once, in `pyproject.toml`. That file is also what pins the deployed runtime: Vercel reads the version from it, from `.python-version` or from `Pipfile.lock`, and offers no project setting; with none of them present the serverless runtime quietly drops to 3.12 while the build log still reports 3.14. Nothing else names a version, because uv takes the interpreter from `requires-python` in every environment, and a test fails if a second copy appears.
 
 ## Keeping orbital elements fresh
 

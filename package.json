@@ -1,15 +1,15 @@
 {
   "name": "astra",
-  "version": "0.1.0",
+  "version": "1.1.0",
   "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0",
-    "api": "uvicorn astra.app:app --host 127.0.0.1 --port 7861 --reload",
+    "api": "uv run uvicorn astra.app:app --host 127.0.0.1 --port 7861 --reload",
     "build": "tsc -b && vite build",
-    "serve": "uvicorn astra.app:app --host 0.0.0.0 --port 7860",
+    "serve": "uv run uvicorn astra.app:app --host 0.0.0.0 --port 7860",
     "test": "vitest run",
-    "test:api": "python -m unittest discover -s tests -p 'test_*.py'",
+    "test:api": "uv run python -m unittest discover -s tests -p 'test_*.py'",
     "preview": "vite preview --host 0.0.0.0"
   },
   "dependencies": {
