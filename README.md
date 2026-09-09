@@ -21,41 +21,106 @@ An interactive sky map and telescope-controller prototype for an Orion Optics OM
 
 **No telescope hardware is connected or controlled.** The large dashed reticle locates the telescope; the small solid outline is the angular field. The eyepiece preset assumes 25 mm focal length and 50° apparent field on a 2000 mm telescope. The camera preset approximates an 11.2 × 6.3 mm sensor at 2000 mm. Optical distortion and camera rotation are not modelled.
 
-## Run locally
+## Requirements
 
-Node 22 or later, and [uv](https://docs.astral.sh/uv/) for the Python side. `uv sync` creates the virtualenv and fetches the interpreter named in `pyproject.toml`, so no Python install is needed first.
+- **Node 24 or later.** Declared in `package.json` as `engines.node`, used by CI and by the deployed build.
+- **[uv](https://docs.astral.sh/uv/)** for the Python side. It creates the virtualenv and fetches the interpreter named in `pyproject.toml`, so no Python installation is needed first.
+
+Install uv system-wide, not into the project's own `.venv`, or deleting that directory takes uv with it and `uv sync` cannot rebuild it:
 
 ```sh
-npm ci
-uv sync
-npm run build
+brew install uv                            # or:
+curl -LsSf https://astral.sh/uv/install.sh | sh
+```
+
+Optional, for tasks beyond running and testing:
+
+- **[Vercel CLI](https://vercel.com/docs/cli)** to link a project or deploy uncommitted state.
+- **[wrangler](https://developers.cloudflare.com/workers/wrangler/)** to deploy the Cloudflare Worker. Available through `npx`, so no install needed.
+- **[GitHub CLI](https://cli.github.com/)** for `scripts/set_r2_secrets.sh`.
+
+## Run locally
+
+```sh
+npm ci                 # Node dependencies, from package-lock.json
+uv sync                # Python interpreter and dependencies, from uv.lock
+npm run build          # type-check and bundle into dist/
 npm run serve          # uvicorn astra.app:app on http://localhost:7860
 ```
 
-The Python server serves the built `dist/` directory and the JSON API under `/api`. For development, run `npm run api` (FastAPI with reload on port 7861) and `npm run dev` (Vite on port 5173) in two terminals; Vite proxies `/api` to the Python server.
+`npm ci` and `uv sync` are also how you restore the environment after deleting `node_modules` and `.venv`. Both are reproducible from the committed lock files, so nothing is lost by clearing them; together they are around 290 MB, against 27 MB for the repository itself. Add `uv sync --group ops` if you also need the AWS CLI, which only the manual R2 sync uses.
 
-Tests:
+`npm run serve` serves the built `dist/` directory and the JSON API under `/api`, which is the closest thing to production. For development with hot reload, run two terminals instead:
 
 ```sh
-npm test               # vitest: astronomy, projection, catalogue logic, API client, and a mounted-app smoke test
-npm run test:api       # unittest: terrain geometry, Gaia parsing, feed caching, request coalescing, HTTP endpoints
+npm run api            # FastAPI with reload on port 7861
+npm run dev            # Vite on port 5173, proxying /api to the above
 ```
+
+A fresh clone runs with no credentials and no cloud setup at all. Satellites come from the snapshots in `public/data/` through `/api/satellites`, everything else is bundled, and only the scheduled refresh described below needs any account. Those bundled snapshots age, though, so satellites disappear from the chart once their elements are more than three days old.
+
+## Tests
+
+```sh
+npm test               # vitest: astronomy, projection, catalogue logic, API client, mounted app
+npm run test:api       # unittest: terrain, Gaia parsing, feed caching, coalescing, HTTP, deploy config
+```
+
+Both run in CI on every push and pull request via `.github/workflows/test.yml`. Neither needs network access: every upstream is mocked, and the bundled catalogues stand in as fixtures.
 
 ## Deploy to Vercel
 
-`vercel.json` builds the Vite frontend as static files and runs the FastAPI app from `api/index.py` as a Python serverless function. Requests to `/api/*` are rewritten to that function; the 5 MB Gaia overview is served as a pre-compressed static file with a `Content-Encoding: gzip` header instead of passing through the function.
+`vercel.json` builds the Vite frontend to static files and runs the FastAPI app from `api/index.py` as a Python serverless function. `/api/*` is rewritten to that function, except `/api/stars/overview`, which is rewritten to the pre-compressed 5 MB Gaia file and served with a `Content-Encoding: gzip` header so it never passes through the function at all.
 
-The project is connected to this repository, so a push to `main` deploys production and a pull request gets a preview. Neither needs a local Vercel CLI.
+The build command also copies the satellite snapshots into `astra/data/`, because the function bundle excludes `public/`, and the server reads them at import. A test fails if a snapshot is read at import but missing from that copy step.
+
+This repository is connected to its Vercel project, so a push to `main` deploys production and a pull request gets a preview. Neither needs the CLI.
 
 ```sh
 vercel --prod          # only to deploy uncommitted local state
 ```
 
-The connection reads the `origin` remote, which the Vercel CLI cannot parse if it uses an SSH host alias. Point `origin` at `https://github.com/<owner>/<repo>.git` for the length of `vercel git connect`, then set it back.
+The Python version is pinned by `requires-python` in `pyproject.toml`, and that file has to keep it. Vercel reads the version only from `pyproject.toml`, `.python-version` or `Pipfile.lock`, and offers no project setting; with none of them present the serverless runtime quietly drops to 3.12 while the build log still reports 3.14. Nothing else names a version, because uv takes the interpreter from `requires-python` everywhere, and a test fails if a second copy appears.
 
-New projects on a team inherit its Deployment Protection setting. If the production `*.vercel.app` alias redirects to a Vercel login, set the project's Vercel Authentication to "Only Preview Deployments" (Settings → Deployment Protection) or attach a custom domain.
+## Deploying your own copy
 
-The Python version and dependencies are declared once, in `pyproject.toml`. That file is also what pins the deployed runtime: Vercel reads the version from it, from `.python-version` or from `Pipfile.lock`, and offers no project setting; with none of them present the serverless runtime quietly drops to 3.12 while the build log still reports 3.14. Nothing else names a version, because uv takes the interpreter from `requires-python` in every environment, and a test fails if a second copy appears.
+A fresh clone deploys to a new Vercel project with no changes. Everything below is only needed for the scheduled satellite refresh, which is optional.
+
+**1. Vercel.** Import the repository at [vercel.com/new](https://vercel.com/new), or link an existing directory:
+
+```sh
+vercel link --project <your-project-name>
+vercel git connect
+```
+
+`vercel git connect` reads the `origin` remote and cannot parse an SSH host alias such as `git@github-you:owner/repo.git`. If you use one, point `origin` at `https://github.com/<owner>/<repo>.git` for the length of that command, then set it back.
+
+New projects on a team inherit its Deployment Protection setting. If the production `*.vercel.app` URL redirects to a Vercel login, set Vercel Authentication to "Only Preview Deployments" under Settings, Deployment Protection, or attach a custom domain.
+
+**2. Storage,** only for the scheduled refresh. Create an R2 bucket, then rename the four places that identify it. A test fails if they disagree, so it will tell you if one is missed:
+
+| File | What to change |
+| --- | --- |
+| `worker/wrangler.toml` | `name` and `bucket_name` |
+| `src/api.ts` | `SATELLITE_DATA_URL` |
+| `scripts/sync_satellites.sh` | the `R2_BUCKET` default |
+| `tests/test_deployment.py` | the expected bucket name |
+
+**3. The Worker** that serves the bucket to the browser:
+
+```sh
+cd worker && npx wrangler deploy     # browser OAuth on first run
+```
+
+It prints `https://<name>.<your-subdomain>.workers.dev`. That address plus `/satellites.json` is what `SATELLITE_DATA_URL` must hold.
+
+**4. Credentials.** Create an R2 API token scoped to the new bucket with object read and write, put it in `.env/r2` as described under Credentials below, and run `./scripts/set_r2_secrets.sh`.
+
+**5. Seed the bucket.** The first run publishes from the bundled snapshots, so it works against an empty bucket:
+
+```sh
+gh workflow run refresh-satellites.yml
+```
 
 ## Keeping orbital elements fresh
 
@@ -63,21 +128,17 @@ Star, Gaia, Messier and constellation catalogues are release snapshots. They sta
 
 Orbital elements are different. They are only usable near their epoch, so the chart flags anything older than 1.5 days and refuses to draw past 3 days rather than showing a guessed position. That window has to be maintained by something outside the request path: a serverless function cannot persist anything, and a background refresh started while answering a request is killed when the instance freezes.
 
-`.github/workflows/refresh-satellites.yml` runs twice a day. It fetches the CelesTrak groups, merges and de-duplicates them, and publishes one payload to Cloudflare R2, which the browser reads directly through the CDN in front of the bucket. No redeploy is involved, and the origin is not touched.
+`.github/workflows/refresh-satellites.yml` runs twice a day, at 01:20 and 13:20 UTC. It fetches the CelesTrak groups, merges and de-duplicates them, and publishes one payload to Cloudflare R2, which the browser reads directly through the Worker in front of the bucket. No redeploy is involved and the origin is not touched. Trigger it by hand with `gh workflow run refresh-satellites.yml`, or run the same cycle locally:
 
 ```sh
 uv sync --group ops                   # the AWS CLI, kept out of the default env
-export R2_ACCOUNT_ID=... AWS_ACCESS_KEY_ID=... AWS_SECRET_ACCESS_KEY=...
-./scripts/sync_satellites.sh          # same cycle, by hand
+set -a && source .env/r2 && set +a
+./scripts/sync_satellites.sh
 ```
 
-Storage is the `sky-data` bucket, which holds nothing else, so the objects sit at its root. `satellites.json` is the merged payload the browser loads; `source/` keeps the per-group files a later run falls back on.
+The bucket holds nothing else, so the objects sit at its root. `satellites.json` is the merged payload the browser loads; `source/` keeps the per-group files a later run falls back on.
 
-The bucket is not read over its built-in `r2.dev` address, which is HTTP/1.1, is not edge cached, and which Cloudflare documents as rate limited and unsuitable for production. `worker/` is a small Cloudflare Worker bound to the bucket that serves it over HTTP/2 and HTTP/3 with edge caching and CORS, deployed separately:
-
-```sh
-cd worker && npx wrangler deploy     # browser OAuth on first run
-```
+The bucket is not read over its built-in `r2.dev` address, which is HTTP/1.1, is not edge cached, and which Cloudflare documents as rate limited and unsuitable for production. `worker/` is a small Cloudflare Worker bound to the bucket that serves it over HTTP/2 and HTTP/3 with edge caching and CORS.
 
 Objects are stored uncompressed and the edge compresses them per client, which is why nothing here sets `Content-Encoding`. The Worker cannot re-encode a body it has already compressed, and the runtime has no brotli decompressor, so storing compressed bodies ends with clients receiving compressed bytes labelled `application/json`.
 
@@ -85,17 +146,17 @@ Partial failure is expected. CelesTrak answers 403 when the caller already holds
 
 ### Credentials
 
-Nothing in the repository holds them. The scheduled job runs on GitHub's runners, so it reads three repository secrets: `R2_ACCOUNT_ID`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The last two are an R2 API token scoped to `sky-data` with object read and write; a token scoped to another bucket fails the pull step with `AccessDenied` rather than publishing a partial result. Secrets are exposed only to the scheduled and manual triggers, never to pull requests.
+Nothing in the repository holds them, and nothing needs to: the scheduled job runs on GitHub's runners and reads three repository secrets, `R2_ACCOUNT_ID`, `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY`. The last two are an R2 API token scoped to the bucket with object read and write; a token scoped elsewhere fails the pull step with `AccessDenied` rather than publishing a partial result. Secrets are exposed only to the scheduled and manual triggers, never to pull requests.
 
-For local runs, keep the same three values in `.env/r2`, which the `.env*` rule keeps out of git:
+For local runs keep the same three values in `.env/r2`, which the `.env*` rule keeps out of git. The account id is the 32-character hex string in the Cloudflare dashboard sidebar, also printed by `npx wrangler whoami`:
 
 ```sh
-R2_ACCOUNT_ID=7d1c1a97b6a4dd9337e17e4072bdba64
+R2_ACCOUNT_ID=<32-character hex account id>
 AWS_ACCESS_KEY_ID=<access key id>
 AWS_SECRET_ACCESS_KEY=<secret access key>
 ```
 
-`./scripts/set_r2_secrets.sh` copies that file into the repository secrets, and is what to re-run after rotating the token.
+`./scripts/set_r2_secrets.sh` copies that file into the repository secrets, and is what to re-run after rotating the token. It checks the account id looks right first, because a wrong value surfaces later as `Invalid endpoint` with the value masked in the workflow log.
 
 ### CORS
 
@@ -105,10 +166,12 @@ The bucket has no CORS configuration and does not need one. That setting governs
 
 - `src/` — React frontend. `App.tsx` wires state together; `api.ts` is the only place that calls the server; hooks (`use*.ts`) own the observing clock, catalogue and satellite loading, terrain requests and the telescope simulator; `TimeDeck`, `TelescopePanel`, `ObjectExplorer`, `LocationDialog` and `AboutDialog` are the large panels.
 - `astra/` — FastAPI backend. `app.py` defines the routes; `feeds.py` is the rate-limited snapshot cache behind the satellite feeds; `coalesce.py` shares one computation between identical concurrent terrain or Gaia requests; `terrain.py` and `deep_stars.py` do the numerical work.
-- `api/index.py` — Vercel entry point.
-- `worker/` — Cloudflare Worker serving the `sky-data` bucket to the browser, including the CORS headers the page relies on.
-- `public/data/` — bundled catalogues and their licences. `scripts/` rebuilds them.
-- `tests/` — vitest (`*.test.ts[x]`) and unittest (`test_*.py`).
+- `api/index.py` — Vercel entry point, the same app without the static mount.
+- `worker/` — Cloudflare Worker serving the R2 bucket to the browser, including the CORS headers the page relies on.
+- `public/data/` — bundled catalogues and their licences.
+- `scripts/` — `refresh_satellites.py` and `sync_satellites.sh` are the scheduled refresh; `set_r2_secrets.sh` places credentials; `fetch_data.py`, `build_gaia_overview.py`, `build_earth_land.py` and `fetch_satellite_catalogue.py` rebuild the bundled catalogues.
+- `tests/` — vitest (`*.test.ts[x]`) and unittest (`test_*.py`), including `test_deployment.py`, which checks the deployment configuration itself.
+- `pyproject.toml` — the only declaration of the Python version and dependencies. `uv.lock` and `package-lock.json` pin exact versions.
 
 ## Data and limitations
 
@@ -116,7 +179,7 @@ The bucket has no CORS configuration and does not need one. That setting governs
 - [Gaia DR3](https://www.cosmos.esa.int/web/gaia/dr3), ESA/Gaia/DPAC. [Full credits and transformations](public/data/GAIA-ATTRIBUTION.md). On-demand ICRS cone searches supplement HYG with 7.5 < G ≤ 14. G magnitudes differ from visual V. Gaia’s Hipparcos cross-match preserves HYG identities; non-Hipparcos nearby stars use a conservative one-arcsecond position match at epoch 2016. Distances are rough inverse parallaxes only when parallax S/N ≥10. At most 6,000 Gaia entries per cone, with explicit truncation. There is no completeness claim or uniform photometric band across the combined sample.
 - [d3-celestial](https://github.com/ofrohn/d3-celestial), Olaf Frohn. BSD-3-Clause. Messier catalogue and constellation data; license included in `public/data/CELESTIAL-LICENSE.txt`.
 - [Astronomy Engine](https://github.com/cosinekitty/astronomy), Don Cross, MIT. Planetary positions and coordinate transforms. Object RA/Dec and simulated mount coordinates are J2000; horizontal positions are for the selected observer and date.
-- [CelesTrak](https://celestrak.org/NORAD/elements/), visual and Starlink groups, OMM JSON. Propagated with [satellite.js](https://github.com/shashwatak/satellite-js) (MIT, SGP4). Elements are republished twice daily by a scheduled job, so the set shown is normally less than a day old; a timestamped snapshot is bundled for outages. Predictions beyond +/-3 days of an element epoch are not drawn, and beyond 1.5 days are marked as less reliable. Old elements cannot reliably reconstruct historical passes or predict distant-future passes. SATCAT metadata identifies payloads, rocket bodies and debris, with country/ownership and launch date. The server refreshes this metadata at most daily. Mission roles for identified objects link to NASA, ESA, JAXA, CMSA or operator references; other payloads retain an explicit unspecified-purpose label. Tracks show propagated positions, not observed telemetry. Shadow calculation is approximate. Visibility in the map does not imply naked-eye visibility.
+- [CelesTrak](https://celestrak.org/NORAD/elements/), visual and Starlink groups, OMM JSON. Propagated with [satellite.js](https://github.com/shashwatak/satellite-js) (MIT, SGP4). Elements are republished twice daily by a scheduled job, so the set shown is normally less than a day old; a timestamped snapshot is bundled for outages. Predictions beyond +/-3 days of an element epoch are not drawn, and beyond 1.5 days are marked as less reliable. Old elements cannot reliably reconstruct historical passes or predict distant-future passes. SATCAT metadata identifies payloads, rocket bodies and debris, with country/ownership and launch date, and is refreshed alongside the elements by the same scheduled job. Mission roles for identified objects link to NASA, ESA, JAXA, CMSA or operator references; other payloads retain an explicit unspecified-purpose label. Tracks show propagated positions, not observed telemetry. Shadow calculation is approximate. Visibility in the map does not imply naked-eye visibility.
 - [Natural Earth](https://www.naturalearthdata.com/), public-domain 1:110m land polygons. [Earth map attribution and transformation](public/data/EARTH-ATTRIBUTION.md). No political borders are drawn.
 - [NASA Solar System](https://science.nasa.gov/solar-system/) and [Hubble Messier catalogue](https://science.nasa.gov/mission/hubble/science/explore-the-night-sky/hubble-messier-catalog/): concise factual descriptions and approximate reference values.
 - [Departure Mono](https://departuremono.com/), Helena Zhang. SIL Open Font License; font and license bundled.
