@@ -1,6 +1,7 @@
 import type { SatelliteData, Site, Star, TerrainProfile } from "./types";
 import { validTerrain } from "./terrain";
 import type { StarField } from "./star-catalogue";
+import { parseSatelliteData } from "./satellite-data";
 
 export interface Address {
   name: string;
@@ -69,20 +70,13 @@ export const SATELLITE_DATA_URL =
   "https://sky-data.globe-climatesim.workers.dev/satellites.json";
 
 /** Enough of a payload to plot: elements that parse, with a timestamp to age them against. */
-export function validSatelliteData(data: unknown): data is SatelliteData {
-  const d = data as SatelliteData;
-  return (
-    !!d &&
-    typeof d.fetchedAt === "string" &&
-    Array.isArray(d.elements) &&
-    d.elements.length > 0 &&
-    d.elements.every((e) => e && typeof e === "object" && "NORAD_CAT_ID" in e && "EPOCH" in e)
-  );
+export function validSatelliteData(data: unknown): boolean {
+  return parseSatelliteData(data) !== null;
 }
 
 async function satellitesFrom(source: () => Promise<unknown>) {
-  const data = await source();
-  if (!validSatelliteData(data)) throw Error("Invalid orbital data.");
+  const data = parseSatelliteData(await source());
+  if (!data) throw Error("Invalid orbital data.");
   return data;
 }
 
@@ -116,19 +110,21 @@ export async function fetchHorizon(
 export async function fetchGroundElevation(
   site: Pick<Site, "lat" | "lon">,
   address?: Pick<Address, "easting" | "northing">,
+  signal?: AbortSignal,
 ): Promise<GroundElevation> {
   const params: Params = { lat: site.lat, lon: site.lon };
   if (address) Object.assign(params, { easting: address.easting, northing: address.northing });
-  const result = await getJSON<Partial<GroundElevation> | null>("/api/elevation", params, ELEVATION_FALLBACK);
+  const result = await getJSON<Partial<GroundElevation> | null>("/api/elevation", params, ELEVATION_FALLBACK, { signal });
   if (!result || !Number.isFinite(result.elevation)) throw Error(ELEVATION_FALLBACK);
   return { elevation: result.elevation as number, source: String(result.source ?? "") };
 }
 
-export async function searchLocations(query: string): Promise<Address[]> {
+export async function searchLocations(query: string, signal?: AbortSignal): Promise<Address[]> {
   const data = await getJSON<{ results?: Address[] } | null>(
     "/api/locations/search",
     { q: query.trim() },
     "Address search unavailable.",
+    { signal },
   );
   return Array.isArray(data?.results) ? data.results : [];
 }

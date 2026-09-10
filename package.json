@@ -1,6 +1,6 @@
 {
   "name": "astra",
-  "version": "1.7.0",
+  "version": "1.8.0",
   "private": true,
   "type": "module",
   "engines": {
@@ -32,6 +32,6 @@
     "jsdom": "^30.0.1",
     "typescript": "~5.8.3",
     "vite": "^6.3.5",
-    "vitest": "^3.2.4"
+    "vitest": "4.1.11"
   }
 }

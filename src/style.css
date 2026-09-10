@@ -5,7 +5,8 @@
   font-weight: 400;
 }
 :root {
-  font-family: Departure, "Courier New", monospace;
+  --font-mono: Departure, "Courier New", monospace;
+  font-family: var(--font-mono);
   color: var(--ink);
   background: var(--paper);
   font-synthesis: none;
@@ -729,7 +730,7 @@ input[type="range"]::-moz-range-thumb {
   text-align: right;
 }
 .object-fact {
-  font-family: Departure, monospace;
+  font-family: var(--font-mono);
   font-size: 10px;
   line-height: 1.75;
   margin: 18px 0;
@@ -794,7 +795,7 @@ input[type="range"]::-moz-range-thumb {
   overflow: visible;
 }
 .context-diagram svg text {
-  font-family: Departure, monospace;
+  font-family: var(--font-mono);
   font-size: 8px;
   fill: var(--muted);
 }

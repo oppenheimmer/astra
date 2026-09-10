@@ -22,7 +22,7 @@ sys.path.insert(0, str(ROOT))
 
 from astra.feeds import FETCH_ERRORS, NotModified  # noqa: E402
 from astra.satellites import (  # noqa: E402
-    fetch_catalogue, fetch_elements, merge_elements, valid_elements,
+    fetch_catalogue, fetch_elements, merge_elements, valid_catalogue, valid_elements,
 )
 
 # Written next to the merged payload so a later run can reuse a group whose
@@ -53,18 +53,34 @@ def save(path: Path, payload: dict) -> None:
     path.write_text(json.dumps(payload, separators=(',', ':')))
 
 
+def validate(name: str, payload: dict) -> dict:
+    if not isinstance(payload, dict):
+        raise ValueError('Invalid satellite snapshot')
+    if name == 'catalogue':
+        return {**payload, 'objects': valid_catalogue(payload['objects'])}
+    return {**payload, 'elements': valid_elements(payload['elements'])}
+
+
 def fallback(name: str, previous: dict | None) -> tuple[dict | None, str]:
     """The previous run's file, or the repository copy on a first run."""
     if previous:
-        return previous, 'keeping previous'
+        try:
+            return validate(name, previous), 'keeping previous'
+        except FETCH_ERRORS:
+            pass
     bundled = load(ROOT / 'public/data' / BUNDLED[name])
-    return (bundled, 'no previous run, using bundled copy') if bundled else (None, 'no data available')
+    if bundled:
+        try:
+            return validate(name, bundled), 'no usable previous run, using bundled copy'
+        except FETCH_ERRORS:
+            pass
+    return None, 'no data available'
 
 
 def refresh(name: str, fetch, previous: dict | None) -> tuple[dict | None, str]:
     """Fresh data for one source, or the best available copy when upstream declines."""
     try:
-        payload = fetch()
+        payload = validate(name, fetch())
     except NotModified:
         kept, why = fallback(name, previous)
         return kept, f'{name}: no new data upstream, {why}'
@@ -87,7 +103,7 @@ def build(directory: Path) -> dict:
             continue
         save(path, payload)
         groups[group] = payload['fetchedAt']
-        elements.append(valid_elements(payload['elements']))
+        elements.append(payload['elements'])
 
     catalogue_path = sources / 'catalogue.json'
     catalogue, note = refresh('catalogue', fetch_catalogue, load(catalogue_path))

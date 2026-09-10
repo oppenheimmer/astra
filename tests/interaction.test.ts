@@ -264,7 +264,7 @@ describe("Solar distances and satellite identification", () => {
       id: "sat999999",
       name: "UNKNOWN",
       metadata: undefined,
-      elements: { NORAD_CAT_ID: 999999, CLASSIFICATION_TYPE: "U" },
+      elements: { ...satellites[0].elements, NORAD_CAT_ID: 999999, CLASSIFICATION_TYPE: "U" },
     };
     expect(describeSatellite(unknown).label).toBe("Type not catalogued");
     expect(

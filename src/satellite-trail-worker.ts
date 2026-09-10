@@ -12,7 +12,7 @@ self.onmessage = (event: MessageEvent<{ satellites: Source[]; time: number; site
     const key = JSON.stringify(source.elements);
     let saved = sources.get(source.id);
     if (!saved || saved.key !== key) {
-      saved = { key, satellite: { ...source, record: json2satrec(source.elements as any) } };
+      saved = { key, satellite: { ...source, record: json2satrec(source.elements) } };
       sources.set(source.id, saved);
     }
     return satellitePass(saved.satellite, time, site);

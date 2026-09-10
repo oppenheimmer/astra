@@ -10,9 +10,9 @@ export function useCatalogue() {
     let cancelled = false;
     Promise.all([
       fetchBundled<Star[]>("stars.json"),
-      fetchBundled("messier.json"),
-      fetchBundled("constellations.lines.json"),
-      fetchBundled("constellations.json"),
+      fetchBundled<Catalogue["messier"]>("messier.json"),
+      fetchBundled<Catalogue["lines"]>("constellations.lines.json"),
+      fetchBundled<Catalogue["constellations"]>("constellations.json"),
     ])
       .then(([stars, messier, lines, constellations]) => {
         if (!cancelled) setCatalogue({ stars, messier, lines, constellations });

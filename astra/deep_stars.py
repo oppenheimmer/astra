@@ -76,7 +76,7 @@ def cone(ra, dec, radius, magnitude):
         FROM gaiadr3.gaia_source AS g
         LEFT OUTER JOIN gaiadr3.hipparcos2_best_neighbour AS x ON g.source_id=x.source_id
         WHERE 1=CONTAINS(POINT('ICRS',g.ra,g.dec),CIRCLE('ICRS',{ra:.5f},{dec:.5f},{radius:.3f}))
-        AND g.phot_g_mean_mag > 7.5 AND g.phot_g_mean_mag <= {magnitude:.1f}
+        AND g.phot_g_mean_mag > 7.5 AND g.phot_g_mean_mag <= {magnitude!r}
         ORDER BY phot_g_mean_mag"""
     # ARI is an official Gaia partner. Its cone queries handle the wider fields
     # efficiently; retain ESA as a bounded fallback. Both preserve HIP matches.

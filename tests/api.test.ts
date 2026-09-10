@@ -1,4 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
+import { readFileSync } from "node:fs";
+import { parseOrbitalElements, parseSatelliteData } from "../src/satellite-data";
 import {
   SATELLITE_DATA_URL,
   fetchBundled,
@@ -12,6 +14,13 @@ import {
   validDeepStars,
   validSatelliteData,
 } from "../src/api";
+
+const orbital = {
+  NORAD_CAT_ID: 25544, OBJECT_NAME: "ISS", OBJECT_ID: "1998-067A", ELEMENT_SET_NO: 999,
+  EPOCH: "2026-09-09T04:00:00.000Z", MEAN_MOTION: 15.5, ECCENTRICITY: 0.0005, INCLINATION: 51.6,
+  RA_OF_ASC_NODE: 100, ARG_OF_PERICENTER: 90, MEAN_ANOMALY: 40, BSTAR: 0.001,
+  MEAN_MOTION_DOT: 0.0001, MEAN_MOTION_DDOT: 0,
+};
 
 const respond = (status: number, body: unknown, malformed = false) => ({
   ok: status >= 200 && status < 300,
@@ -99,7 +108,7 @@ describe("API client", () => {
   });
   it("reads orbital elements from the published snapshot without touching the origin", async () => {
     const payload = { fetchedAt: "2026-09-09T05:00:00Z", source: "CelesTrak",
-      elements: [{ NORAD_CAT_ID: 25544, EPOCH: "2026-09-09T04:00:00" }] };
+      elements: [orbital] };
     const fetch = mockFetch(respond(200, payload));
     await expect(fetchSatellites()).resolves.toEqual(payload);
     expect(fetch).toHaveBeenCalledTimes(1);
@@ -108,7 +117,7 @@ describe("API client", () => {
 
   it("falls back to the origin when the snapshot is unreachable or malformed", async () => {
     const payload = { fetchedAt: "2026-09-09T05:00:00Z", source: "bundled",
-      elements: [{ NORAD_CAT_ID: 1, EPOCH: "2026-09-09T04:00:00" }] };
+      elements: [orbital] };
     for (const bad of [respond(503, { detail: "gone" }), respond(200, { elements: [] }), respond(200, null)]) {
       const fetch = mockFetch(bad, respond(200, payload));
       await expect(fetchSatellites()).resolves.toEqual(payload);
@@ -127,13 +136,48 @@ describe("API client", () => {
   });
 
   it("rejects orbital payloads that cannot be propagated", () => {
-    const ok = { fetchedAt: "t", elements: [{ NORAD_CAT_ID: 1, EPOCH: "2026-09-09T04:00:00" }] };
+    const ok = { fetchedAt: "2026-09-09T05:00:00Z", source: "CelesTrak", elements: [orbital] };
     expect(validSatelliteData(ok)).toBe(true);
     expect(validSatelliteData({ ...ok, elements: [] })).toBe(false);
     expect(validSatelliteData({ ...ok, fetchedAt: undefined })).toBe(false);
     expect(validSatelliteData({ ...ok, elements: [{ NORAD_CAT_ID: 1 }] })).toBe(false);
     expect(validSatelliteData({ ...ok, elements: [{ EPOCH: "t" }] })).toBe(false);
     expect(validSatelliteData(null)).toBe(false);
+  });
+
+  it("normalizes IDs and epoch offsets without changing the source response", () => {
+    const raw = { ...orbital, NORAD_CAT_ID: "025544", EPOCH: "2026-09-09T06:00:00+02:00" };
+    expect(parseOrbitalElements(raw)).toEqual(orbital);
+    expect(raw.NORAD_CAT_ID).toBe("025544");
+    expect(raw.EPOCH).toBe("2026-09-09T06:00:00+02:00");
+    expect(parseOrbitalElements({ ...raw, EPOCH: "2026-09-09T04:00:00" })).toEqual(orbital);
+    expect(parseOrbitalElements({ ...orbital, MEAN_MOTION: "15.5", ELEMENT_SET_NO: "999" })).toEqual(orbital);
+  });
+
+  it("rejects malformed or unphysical orbital fields and metadata before replacing a snapshot", () => {
+    for (const bad of [
+      { NORAD_CAT_ID: [] }, { NORAD_CAT_ID: true }, { NORAD_CAT_ID: Number.MAX_SAFE_INTEGER + 1 },
+      { EPOCH: "2026-02-30T00:00:00" }, { EPOCH: "2026-09-09T24:00:00Z" },
+      { MEAN_MOTION: 0 }, { MEAN_MOTION: Infinity }, { ECCENTRICITY: 1 },
+      { INCLINATION: 181 }, { BSTAR: "" }, { BSTAR: "0x10" }, { BSTAR: true }, { ARG_OF_PERICENTER: -1 },
+      { MEAN_MOTION_DDOT: null }, { OBJECT_NAME: " " }, { OBJECT_ID: [] },
+    ]) expect(parseOrbitalElements({ ...orbital, ...bad })).toBeNull();
+    const payload = { fetchedAt: "2026-09-09T05:00:00Z", source: "CelesTrak", elements: [orbital] };
+    expect(parseSatelliteData({ ...payload, elements: [orbital, { ...orbital, BSTAR: null }] })).toBeNull();
+    expect(parseSatelliteData({ ...payload, catalogue: { objects: {} } })).toBeNull();
+    expect(parseSatelliteData({ ...payload, catalogue: { fetchedAt: "", source: "CelesTrak SATCAT", objects: {} } })).not.toBeNull();
+    expect(parseSatelliteData({ ...payload, elements: Array(50001).fill(orbital) })).toBeNull();
+  });
+
+  it("accepts the real bundled visual, Starlink and object catalogues", () => {
+    const load = (file: string) => JSON.parse(readFileSync(new URL(`../public/data/${file}.json`, import.meta.url), "utf8"));
+    const catalogue = load("satellite-catalogue");
+    for (const file of ["satellites", "starlink"]) {
+      const payload = { ...load(file), catalogue };
+      const result = parseSatelliteData(payload);
+      expect(result?.elements.length).toBe(payload.elements.length);
+      expect(result?.elements.every((e) => e.EPOCH.endsWith("Z"))).toBe(true);
+    }
   });
 
   it("addresses bundled data and the Gaia overview by fixed paths", async () => {

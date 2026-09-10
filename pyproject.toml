@@ -12,16 +12,18 @@ version = "1.1.0"
 description = "Starmap backend: orbital, terrain and Gaia data for the observing desk"
 requires-python = "==3.14.*"
 dependencies = [
-    "fastapi==0.116.1",
+    "fastapi==0.141.1",
+    "starlette==1.6.0",
     "uvicorn==0.35.0",
-    "requests==2.32.5",
+    "requests==2.34.2",
     "numpy==2.3.3",
-    "Pillow==11.3.0",
+    "Pillow==12.3.0",
 ]
 
 [dependency-groups]
 # httpx backs fastapi.testclient.TestClient, which the HTTP-level tests use.
 dev = ["httpx==0.28.1"]
+audit = ["pip-audit==2.10.1"]
 
 # Only scripts/sync_satellites.sh needs this, only when publishing to R2 by
 # hand, and it is 150 MB. GitHub's runners ship the AWS CLI already, so the

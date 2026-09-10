@@ -214,7 +214,7 @@ export function prepareSatellites(data: SatelliteData): Satellite[] {
           id: "sat" + e.NORAD_CAT_ID,
           name: e.OBJECT_NAME,
           epoch: e.EPOCH,
-          record: S.json2satrec(e as any),
+          record: S.json2satrec(e),
           elements: e,
           metadata: data.catalogue?.objects[String(e.NORAD_CAT_ID)] ??
             (/^STARLINK-\d+$/.test(e.OBJECT_NAME) ? {
@@ -493,9 +493,9 @@ export function createSky(
       stale: age > SATELLITE_STALE_DAYS,
     });
   }
-  const lines = catalogue.lines.features.map((f: any) => ({
+  const lines = catalogue.lines.features.map((f) => ({
     name: f.id,
-    points: f.geometry.coordinates.map((line: number[][]) =>
+    points: f.geometry.coordinates.map((line) =>
       line.map(([lon, dec]) => toHor(wrap(lon) / 15, dec)),
     ),
   }));

@@ -672,7 +672,7 @@
 .layer-row .object-symbol svg { display: block; width: 17px; height: 17px; margin: auto; fill: none; stroke: currentColor; stroke-width: 1; stroke-linejoin: round; }
 .telescope-blueprint { margin: 12px 0 13px; }
 .telescope-blueprint svg { display: block; width: 100%; }
-.telescope-blueprint svg text { font: 9px Departure, monospace; fill: var(--muted); stroke: none; }
+.telescope-blueprint svg text { font: 9px var(--font-mono); fill: var(--muted); stroke: none; }
 .blueprint-guide { fill: none; stroke: var(--rule); stroke-width: .65; stroke-dasharray: 2 4; }
 .blueprint-surface { stroke: var(--muted); stroke-width: .75; stroke-linejoin: round; }
 .blueprint-surface.tube { fill: var(--paper); stroke: var(--ink); stroke-width: 1.05; }

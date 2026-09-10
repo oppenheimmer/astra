@@ -1,10 +1,16 @@
-import { EarthOrbit, GalaxyContext, SolarSystem, StarNeighbourhood } from "./Neighbourhood";
+import { lazy } from "react";
+import DeferredPanel from "./DeferredPanel";
 import { formatDec, formatRA } from "./projection";
 import { describeSatellite, ownerNames } from "./satellite-info";
 import { detailFact, distanceLabel, planetFacts } from "./sky";
 import { horizonAltitude } from "./terrain";
 import type { Catalogue, Site, SkyObject, Star, TerrainProfile } from "./types";
 import { kindLabel, SectionTitle, signature } from "./ui";
+
+const EarthOrbit = lazy(() => import("./Neighbourhood").then((module) => ({ default: module.EarthOrbit })));
+const GalaxyContext = lazy(() => import("./Neighbourhood").then((module) => ({ default: module.GalaxyContext })));
+const SolarSystem = lazy(() => import("./Neighbourhood").then((module) => ({ default: module.SolarSystem })));
+const StarNeighbourhood = lazy(() => import("./Neighbourhood").then((module) => ({ default: module.StarNeighbourhood })));
 
 interface Props {
   selected: SkyObject | null;
@@ -23,7 +29,7 @@ interface Props {
 export default function ObjectExplorer(p: Props) {
   const { selected } = p;
   const constellation = selected?.star
-    ? p.catalogue?.constellations.features.find((f: any) => f.id === selected.star!.con)?.properties?.name
+    ? p.catalogue?.constellations.features.find((f) => f.id === selected.star!.con)?.properties.name
     : null;
   return (
     <aside className="right-rail">
@@ -142,6 +148,7 @@ export default function ObjectExplorer(p: Props) {
             <span>RA {formatRA(selected.ra)}</span>
             <span>DEC {formatDec(selected.dec)}</span>
           </div>
+          <DeferredPanel label="Context diagram">
           {selected.kind === "star" && p.catalogue ? (
             <StarNeighbourhood object={selected} stars={p.stars} />
           ) : selected.kind === "planet" ? (
@@ -161,6 +168,7 @@ export default function ObjectExplorer(p: Props) {
               </p>
             </div>
           )}
+          </DeferredPanel>
         </>
       ) : (
         <div className="empty-explorer">

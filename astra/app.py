@@ -1,4 +1,5 @@
 """FastAPI application: the JSON API under /api, plus the built frontend when it is present."""
+import asyncio
 import html
 import re
 from pathlib import Path
@@ -15,7 +16,8 @@ from .upstream import HEADERS
 OVERVIEW = DATA / 'gaia-overview.json.gz'
 GZIP_MAGIC = b'\x1f\x8b'
 SEARCH_URL = 'https://api3.geo.admin.ch/rest/services/ech/SearchServer'
-UPSTREAM_ERRORS = (requests.RequestException, ValueError, OSError, KeyError)
+TERRAIN_WAIT_SECONDS = 45
+UPSTREAM_ERRORS = (requests.RequestException, ValueError, OSError, KeyError, TypeError)
 
 terrain_work = Coalescer(workers=2, backlog=8)
 star_work = Coalescer(workers=2, backlog=8)
@@ -43,9 +45,11 @@ def bundled_overview() -> Path:
 
 def create_app(static_dir: Path | None = DIST) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None)
+    search_work = Coalescer(workers=2, backlog=8, cache_size=256, ttl=300)
+    elevation_work = Coalescer(workers=2, backlog=8, cache_size=256, ttl=86400)
 
     @app.get('/api/health')
-    def health():
+    async def health():
         return {'status': 'ok', 'hardware': 'simulation only'}
 
     @app.get('/api/satellites')
@@ -59,9 +63,14 @@ def create_app(static_dir: Path | None = DIST) -> FastAPI:
                       height: float = Query(default=1.5, ge=0, le=500)):
         key = (round(lat, 5), round(lon, 5), round(height, 1))
         try:
-            result = await terrain_work.run(key, lambda: terrain.horizon(*key))
+            result = await asyncio.wait_for(terrain_work.run(key, lambda: terrain.horizon(*key)),
+                                            timeout=TERRAIN_WAIT_SECONDS)
         except Busy:
             raise HTTPException(503, 'Terrain is busy. Try again shortly.')
+        except TimeoutError:
+            raise HTTPException(503, 'Terrain calculation exceeded its time limit. Try again shortly.')
+        except terrain.TerrainUnavailable as error:
+            raise HTTPException(503, str(error)) from error
         except ValueError as error:
             raise HTTPException(422, str(error)) from error
         except UPSTREAM_ERRORS:
@@ -69,21 +78,35 @@ def create_app(static_dir: Path | None = DIST) -> FastAPI:
         return JSONResponse(result, headers={'Cache-Control': 'private, max-age=86400'})
 
     @app.get('/api/elevation')
-    def elevation(lat: float = Query(ge=-85, le=85), lon: float = Query(ge=-180, le=180),
+    async def elevation(lat: float = Query(ge=-85, le=85), lon: float = Query(ge=-180, le=180),
                   easting: float | None = Query(default=None, ge=2400000, le=2900000),
                   northing: float | None = Query(default=None, ge=1000000, le=1400000)):
+        if (easting is None) != (northing is None):
+            raise HTTPException(422, 'Supply both easting and northing for an address elevation.')
+        key = (round(lat, 5), round(lon, 5),
+               round(easting, 1) if easting is not None else None,
+               round(northing, 1) if northing is not None else None)
         try:
-            return terrain.elevation(lat, lon, easting, northing)
+            return await elevation_work.run(key, lambda: terrain.elevation(*key))
+        except Busy:
+            raise HTTPException(503, 'Elevation lookup is busy. Try again shortly or enter it manually.')
         except UPSTREAM_ERRORS:
             raise HTTPException(503, 'Elevation lookup is unavailable. You can enter it manually.')
 
     @app.get('/api/locations/search')
-    def search_locations(q: str = Query(min_length=3, max_length=160)):
-        try:
+    async def search_locations(q: str = Query(min_length=3, max_length=160)):
+        query = ' '.join(q.split()).casefold()
+        if len(query) < 3:
+            raise HTTPException(422, 'Enter at least three characters to search.')
+        def lookup():
             response = requests.get(SEARCH_URL, headers=HEADERS, timeout=12, params={
-                'searchText': q, 'type': 'locations', 'origins': 'address,gazetteer', 'sr': 2056, 'limit': 6})
+                'searchText': query, 'type': 'locations', 'origins': 'address,gazetteer', 'sr': 2056, 'limit': 6})
             response.raise_for_status()
             return {'results': search_results(response.json()['results'])}
+        try:
+            return await search_work.run(query, lookup)
+        except Busy:
+            raise HTTPException(503, 'Address search is busy. Try again shortly.')
         except (requests.RequestException, ValueError, KeyError, TypeError):
             raise HTTPException(503, 'Address search is unavailable. Use coordinates or your browser location.')
 
@@ -95,9 +118,9 @@ def create_app(static_dir: Path | None = DIST) -> FastAPI:
     @app.get('/api/stars/deep')
     async def faint_stars(ra: float = Query(ge=0, le=360), dec: float = Query(ge=-90, le=90),
                           radius: float = Query(ge=0.1, le=32), magnitude: float = Query(gt=7.5, le=14)):
-        if radius > deep_stars.radius_limit(magnitude):
+        key = (round(ra, 5), round(dec, 5), round(radius, 3), magnitude)
+        if key[2] > deep_stars.radius_limit(magnitude):
             raise HTTPException(422, 'Field too wide for this magnitude. Zoom closer.')
-        key = (round(ra, 5), round(dec, 5), round(radius, 3), round(magnitude, 1))
         try:
             result = await star_work.run(key, lambda: deep_stars.cone(*key))
         except Busy:

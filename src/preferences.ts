@@ -1,5 +1,6 @@
 import { clamp } from "./projection";
 import { isSite } from "./sites";
+import { DEFAULT_FONT, isMonospaceFont, type MonospaceFont } from "./fonts";
 import { DEEP_MAGNITUDE } from "./star-catalogue";
 import type { Theme } from "./theme";
 import type { Site } from "./types";
@@ -14,6 +15,7 @@ export const STORAGE_KEYS = {
   theme: "sidereal-theme",
   starMagnitude: "sidereal-star-magnitude",
   satelliteTrails: "sidereal-satellite-trails",
+  font: "sidereal-monospace-font",
 } as const;
 export const DEFAULT_MAGNITUDE = 6.5;
 
@@ -53,6 +55,12 @@ export const saveStarMagnitude = (magnitude: number) =>
 export const readSatelliteTrails = () => readStored(STORAGE_KEYS.satelliteTrails) === "all";
 export const saveSatelliteTrails = (all: boolean) =>
   writeStored(STORAGE_KEYS.satelliteTrails, all ? "all" : "none");
+
+export function readMonospaceFont(): MonospaceFont {
+  const saved = readStored(STORAGE_KEYS.font);
+  return isMonospaceFont(saved) ? saved : DEFAULT_FONT;
+}
+export const saveMonospaceFont = (font: MonospaceFont) => writeStored(STORAGE_KEYS.font, font);
 
 export const saveTheme = (theme: Theme) => writeStored(STORAGE_KEYS.theme, theme);
 /** index.html applies the saved theme before the first paint; React starts from that. */

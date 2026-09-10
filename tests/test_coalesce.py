@@ -1,11 +1,31 @@
 import asyncio
 import threading
 import unittest
+from unittest.mock import patch
 
 from astra.coalesce import Busy, Coalescer
 
 
 class Coalescing(unittest.TestCase):
+    def test_success_cache_expires_and_evicts_the_least_recently_used_key(self):
+        clock = [100.0]
+        calls = []
+        async def scenario():
+            work = Coalescer(workers=1, backlog=2, cache_size=2, ttl=10)
+            async def get(key):
+                return await work.run(key, lambda: calls.append(key) or key)
+            self.assertEqual(await get('a'), 'a')
+            await get('b')
+            await get('a')  # Keep a and evict b when c arrives.
+            await get('c')
+            await get('a')
+            await get('b')
+            clock[0] += 11
+            await get('b')
+        with patch('astra.coalesce.time.monotonic', side_effect=lambda: clock[0]):
+            asyncio.run(scenario())
+        self.assertEqual(calls, ['a', 'b', 'c', 'b', 'b'])
+
     def test_identical_keys_share_one_computation(self):
         calls = []
         release = threading.Event()

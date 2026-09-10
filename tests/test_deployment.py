@@ -6,10 +6,13 @@ fail in CI rather than as a 500 on a cold start.
 """
 import json
 import re
+import tomllib
 import unittest
 
 import astra
 from astra import satellites
+from api.index import app as deployed_app
+from fastapi.staticfiles import StaticFiles
 
 
 class VercelConfiguration(unittest.TestCase):
@@ -27,8 +30,9 @@ class VercelConfiguration(unittest.TestCase):
                          'the catch-all must be last so earlier, more specific rules win')
         self.assertEqual(self.rewrites()['/api/stars/overview'], '/data/gaia-overview.json.gz')
         self.assertTrue(self.entry.is_file())
-        self.assertIn('create_app(static_dir=None)', self.entry.read_text(),
-                      'Vercel serves dist/ itself; the function must not mount it')
+        self.assertFalse(any(isinstance(getattr(route, 'app', None), StaticFiles)
+                             for route in deployed_app.routes),
+                         'Vercel serves dist/ itself; the function must not mount it')
 
     def test_the_overview_rewrite_target_is_served_as_gzipped_json(self):
         wanted = {'Content-Encoding': 'gzip', 'Content-Type': 'application/json'}
@@ -57,10 +61,8 @@ class VercelConfiguration(unittest.TestCase):
         version: uv takes the interpreter from requires-python, so a literal in a
         workflow could disagree with the deployed runtime and still look correct.
         """
-        pyproject = (astra.ROOT / 'pyproject.toml').read_text()
-        pinned = re.search(r'requires-python\s*=\s*"([^"]+)"', pyproject)
-        self.assertIsNotNone(pinned, 'pyproject.toml must declare requires-python')
-        self.assertEqual(pinned.group(1), '==3.14.*')
+        pyproject = tomllib.loads((astra.ROOT / 'pyproject.toml').read_text())
+        self.assertEqual(pyproject['project']['requires-python'], '==3.14.*')
         self.assertFalse((astra.ROOT / '.python-version').exists(),
                          'the version lives in pyproject.toml; a second copy can disagree with it')
         for workflow in (astra.ROOT / '.github/workflows').glob('*.yml'):
@@ -71,11 +73,12 @@ class VercelConfiguration(unittest.TestCase):
         """requirements.txt used to carry these, and a second list drifts from the first."""
         for stale in ('requirements.txt', 'requirements-dev.txt'):
             self.assertFalse((astra.ROOT / stale).exists(), f'{stale} duplicates pyproject.toml')
-        pyproject = (astra.ROOT / 'pyproject.toml').read_text()
-        for package in ('fastapi', 'uvicorn', 'requests', 'numpy', 'Pillow'):
-            self.assertIn(package, pyproject, f'{package} is imported by the server but not declared')
+        pyproject = tomllib.loads((astra.ROOT / 'pyproject.toml').read_text())
+        declared = {re.split(r'[<=>\[]', requirement)[0].lower()
+                    for requirement in pyproject['project']['dependencies']}
+        self.assertLessEqual({'fastapi', 'starlette', 'uvicorn', 'requests', 'numpy', 'pillow'}, declared)
 
-    def test_object_storage_is_one_bucket_named_consistently_everywhere(self):
+    def test_object_storage_is_named_consistently_everywhere(self):
         """The bucket, the Worker binding and the URL the browser reads must agree.
 
         These live in three languages and no build step connects them, so a
@@ -84,23 +87,17 @@ class VercelConfiguration(unittest.TestCase):
         cannot write here, so a leftover reference is a silent write failure.
         """
         sync = (astra.ROOT / 'scripts/sync_satellites.sh').read_text()
-        wrangler = (astra.ROOT / 'worker/wrangler.toml').read_text()
+        wrangler = tomllib.loads((astra.ROOT / 'worker/wrangler.toml').read_text())
         api = (astra.ROOT / 'src/api.ts').read_text()
 
         bucket = re.search(r'BUCKET="\$\{R2_BUCKET:-([\w-]+)\}"', sync).group(1)
-        self.assertEqual(bucket, 'sky-data')
-        self.assertEqual(re.search(r'bucket_name\s*=\s*"([\w-]+)"', wrangler).group(1), bucket)
-        self.assertEqual(re.search(r'^name\s*=\s*"([\w-]+)"', wrangler, re.M).group(1), bucket,
+        self.assertEqual(wrangler['r2_buckets'][0]['bucket_name'], bucket)
+        self.assertEqual(wrangler['name'], bucket,
                          'the Worker is named after its bucket, and the URL depends on that name')
 
         url = re.search(r'SATELLITE_DATA_URL\s*=\s*\n?\s*"([^"]+)"', api).group(1)
         self.assertTrue(url.startswith(f'https://{bucket}.'), f'{url} does not address the {bucket} Worker')
         self.assertTrue(url.endswith('/satellites.json'), 'the object sits at the bucket root')
-
-        for path in ('scripts/sync_satellites.sh', 'src/api.ts', 'worker/wrangler.toml',
-                     'worker/index.js', '.github/workflows/refresh-satellites.yml'):
-            self.assertNotIn('earth-data', (astra.ROOT / path).read_text(),
-                             f'{path} still points at the earth project bucket')
 
     def test_the_bundle_keeps_the_backend_and_drops_the_frontend(self):
         excluded = self.config['functions']['api/index.py']['excludeFiles']

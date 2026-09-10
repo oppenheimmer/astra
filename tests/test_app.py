@@ -1,10 +1,13 @@
+import asyncio
 import gzip
+import threading
 import tempfile
 import unittest
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 import requests
+import httpx
 from fastapi.testclient import TestClient
 
 import astra
@@ -66,10 +69,42 @@ class Api(unittest.TestCase):
             response = self.client.get('/api/horizon', params={'lat': 46, 'lon': 7})
         self.assertEqual(response.status_code, 503)
         self.assertEqual(response.json()['detail'], 'Could not load terrain data. Try again.')
+        with patch.object(terrain, 'horizon', side_effect=terrain.TerrainUnavailable('Invalid terrain tile dimensions')):
+            response = self.client.get('/api/horizon', params={'lat': 46, 'lon': 7})
+        self.assertEqual(response.status_code, 503)
+        self.assertIn('Invalid terrain tile', response.json()['detail'])
         self.assertEqual(self.client.get('/api/horizon', params={'lat': 95, 'lon': 0}).status_code, 422)
         with patch.object(web, 'terrain_work', Coalescer(workers=2, backlog=0)):
             response = self.client.get('/api/horizon', params={'lat': 46, 'lon': 7})
         self.assertEqual((response.status_code, response.json()['detail']), (503, 'Terrain is busy. Try again shortly.'))
+
+    def test_horizon_http_deadline_includes_time_waiting_for_a_worker(self):
+        release = threading.Event()
+        started = threading.Event()
+        def occupy():
+            started.set()
+            return release.wait(2)
+        async def scenario():
+            work = Coalescer(workers=1, backlog=8)
+            occupied = asyncio.create_task(work.run('occupied', occupy))
+            try:
+                for _ in range(100):
+                    if started.is_set():
+                        break
+                    await asyncio.sleep(0.005)
+                self.assertTrue(started.is_set())
+                async with httpx.AsyncClient(transport=httpx.ASGITransport(web.create_app(None)), base_url='http://test') as client:
+                    with patch.object(web, 'terrain_work', work), patch.object(web, 'TERRAIN_WAIT_SECONDS', 0.01), \
+                         patch.object(terrain, 'horizon', return_value={'altitudes': []}):
+                        response = await client.get('/api/horizon', params={'lat': 1, 'lon': 1})
+                        self.assertEqual(response.status_code, 503)
+                        self.assertIn('time limit', response.json()['detail'])
+                        release.set()
+                        await occupied
+                        await asyncio.gather(*list(work.pending.values()))
+            finally:
+                release.set()
+        asyncio.run(scenario())
 
     def test_elevation_falls_back_to_manual_entry(self):
         with patch.object(terrain, 'elevation', return_value={'elevation': 540, 'source': 'test'}) as elevation:
@@ -77,7 +112,7 @@ class Api(unittest.TestCase):
                              {'elevation': 540, 'source': 'test'})
             elevation.assert_called_once_with(46.9, 7.4, None, None)
         with patch.object(terrain, 'elevation', side_effect=OSError):
-            response = self.client.get('/api/elevation', params={'lat': 46.9, 'lon': 7.4})
+            response = self.client.get('/api/elevation', params={'lat': 47, 'lon': 7.4})
         self.assertEqual(response.status_code, 503)
         self.assertEqual(self.client.get('/api/elevation', params={'lat': 46.9, 'lon': 7.4, 'easting': 1}).status_code, 422)
 
@@ -90,8 +125,63 @@ class Api(unittest.TestCase):
         self.assertEqual(response.json(), {'results': [{'name': 'Bundesplatz 3 3011 Bern & Co', 'lat': 46.9, 'lon': 7.4,
                                                         'easting': 2600000, 'northing': 1199000}]})
         with patch.object(web.requests, 'get', side_effect=requests.Timeout):
-            self.assertEqual(self.client.get('/api/locations/search', params={'q': 'Bundesplatz'}).status_code, 503)
+            self.assertEqual(self.client.get('/api/locations/search', params={'q': 'Greenwich'}).status_code, 503)
         self.assertEqual(self.client.get('/api/locations/search', params={'q': 'ab'}).status_code, 422)
+        self.assertEqual(self.client.get('/api/locations/search', params={'q': '  a  '}).status_code, 422)
+
+    def test_normalized_location_lookups_cache_successes_but_allow_failed_requests_to_retry(self):
+        upstream = MagicMock()
+        upstream.json.return_value = {'results': []}
+        with patch.object(web.requests, 'get', side_effect=[requests.Timeout(), upstream]) as get:
+            self.assertEqual(self.client.get('/api/locations/search', params={'q': '  Bern   Station '}).status_code, 503)
+            self.assertEqual(self.client.get('/api/locations/search', params={'q': 'BERN Station'}).status_code, 200)
+            self.assertEqual(self.client.get('/api/locations/search', params={'q': 'bern station'}).json(), {'results': []})
+        self.assertEqual(get.call_count, 2)
+        self.assertEqual(get.call_args.kwargs['params']['searchText'], 'bern station')
+        with patch.object(terrain, 'elevation', return_value={'elevation': 100}) as elevation:
+            for lat in (46.900001, 46.900002):
+                self.assertEqual(self.client.get('/api/elevation', params={'lat': lat, 'lon': 7}).json(), {'elevation': 100})
+        elevation.assert_called_once_with(46.9, 7.0, None, None)
+
+    def test_full_lookup_queues_reject_excess_work_and_leave_health_available(self):
+        for kind in ('search', 'elevation'):
+            with self.subTest(kind=kind):
+                release = threading.Event()
+                active = []
+                def slow(*args, **kwargs):
+                    active.append(1)
+                    release.wait(3)
+                    response = MagicMock()
+                    response.json.return_value = {'results': []}
+                    return response if kind == 'search' else {'elevation': 1}
+                async def scenario():
+                    app = web.create_app(static_dir=None)
+                    async with httpx.AsyncClient(transport=httpx.ASGITransport(app), base_url='http://test') as client:
+                        path = '/api/locations/search' if kind == 'search' else '/api/elevation'
+                        params = lambda n: {'q': f'address {n}'} if kind == 'search' else {'lat': n, 'lon': 0}
+                        pending = [asyncio.create_task(client.get(path, params=params(n))) for n in range(8)]
+                        try:
+                            for _ in range(100):
+                                if len(active) == 2:
+                                    break
+                                await asyncio.sleep(0.005)
+                            self.assertEqual(len(active), 2)
+                            overflow = await asyncio.wait_for(client.get(path, params=params(9)), 0.5)
+                            self.assertEqual(overflow.status_code, 503)
+                            self.assertIn('busy', overflow.json()['detail'])
+                            health = await asyncio.wait_for(client.get('/api/health'), 0.5)
+                            self.assertEqual(health.status_code, 200)
+                            duplicate = asyncio.create_task(client.get(path, params=params(0)))
+                            await asyncio.sleep(0)
+                        finally:
+                            release.set()
+                            results = await asyncio.gather(*pending)
+                        self.assertTrue(all(result.status_code == 200 for result in results))
+                        self.assertEqual((await duplicate).status_code, 200)
+                target = web.requests if kind == 'search' else terrain
+                with patch.object(target, 'get' if kind == 'search' else 'elevation', side_effect=slow):
+                    asyncio.run(scenario())
+                self.assertEqual(len(active), 8, 'duplicate requests share the admitted work')
 
     def test_deep_stars_reject_wide_fields_before_any_network_call(self):
         with patch.object(deep_stars, 'cone') as cone:
@@ -107,11 +197,18 @@ class Api(unittest.TestCase):
             response = self.client.get('/api/stars/deep', params={'ra': 10.123456, 'dec': 10, 'radius': 1.23456, 'magnitude': 12.04})
         self.assertEqual(response.json(), result)
         self.assertEqual(response.headers['cache-control'], 'public, max-age=86400')
-        cone.assert_called_once_with(10.12346, 10.0, 1.235, 12.0)
+        cone.assert_called_once_with(10.12346, 10.0, 1.235, 12.04)
         with patch.object(deep_stars, 'cone', side_effect=requests.Timeout):
             response = self.client.get('/api/stars/deep', params={'ra': 10, 'dec': 10, 'radius': 1, 'magnitude': 12})
         self.assertEqual(response.status_code, 503)
         self.assertIn('bright-star map remains available', response.json()['detail'])
+
+    def test_deep_star_magnitude_just_above_the_bright_layer_preserves_precision(self):
+        for magnitude in (7.51, 7.500001):
+            with patch.object(deep_stars, 'cone', return_value={'stars': []}) as cone:
+                response = self.client.get('/api/stars/deep', params={'ra': 1, 'dec': 1, 'radius': 1, 'magnitude': magnitude})
+            self.assertEqual(response.status_code, 200)
+            cone.assert_called_once_with(1.0, 1.0, 1.0, magnitude)
 
     def test_overview_serves_gzip_only_when_real_data_is_bundled(self):
         with tempfile.TemporaryDirectory() as directory:

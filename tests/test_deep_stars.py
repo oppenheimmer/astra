@@ -6,6 +6,19 @@ HEADER='source_id,ra,dec,ref_epoch,phot_g_mean_mag,parallax,parallax_over_error,
 ROW='2097863517172455552,180,30,2016,13.1,10,50,123,-12,42\n'
 
 class DeepStars(unittest.TestCase):
+    def test_query_preserves_requested_magnitude_near_the_lower_boundary(self):
+        response = MagicMock()
+        response.__enter__.return_value = response
+        response.iter_content.return_value = [HEADER.encode()]
+        deep_stars.cone.cache_clear()
+        try:
+            with patch.object(deep_stars.requests, 'get', return_value=response) as get:
+                result = deep_stars.cone(1, 1, 1, 7.500001)
+            self.assertIn('g.phot_g_mean_mag <= 7.500001', get.call_args.kwargs['params']['QUERY'])
+            self.assertEqual(result['magnitude'], 7.500001)
+        finally:
+            deep_stars.cone.cache_clear()
+
     def test_archive_failure_falls_back_and_failed_responses_are_not_cached(self):
         deep_stars.cone.cache_clear()
         response = MagicMock()

@@ -22,6 +22,7 @@ export function useSatelliteFeed() {
   const [satellites, setSatellites] = useState<Satellite[]>([]);
   const [data, setData] = useState<SatelliteData | null>(null);
   const [error, setError] = useState("");
+  const [attempt, setAttempt] = useState(0);
   useEffect(() => {
     const controller = new AbortController();
     const load = () =>
@@ -43,6 +44,6 @@ export function useSatelliteFeed() {
       controller.abort();
       clearInterval(timer);
     };
-  }, []);
-  return { satellites, data, error };
+  }, [attempt]);
+  return { satellites, data, error, retry: () => setAttempt((value) => value + 1) };
 }

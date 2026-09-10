@@ -9,8 +9,6 @@ import type {
 } from "./types";
 import { horizonAltitude } from "./terrain";
 import {
-  anchorDirection,
-  angularLimb,
   clamp,
   compass,
   createProjector,
@@ -18,15 +16,18 @@ import {
   personalBoundary,
   unproject,
   wrap,
-  zoomAt,
 } from "./projection";
 import { distanceLabel, equatorialToHorizontal } from "./sky";
-import { passSplit } from "./satellite-trails";
+import { drawSkyObjects, drawSatelliteTrails } from "./sky-map-layers";
+import type { PlottedObject } from "./sky-map-hit-testing";
+import { useSkyMapPointer } from "./useSkyMapPointer";
 import { useSatelliteTrails } from "./useSatelliteTrails";
-import { skyPalette, starRadius, type Theme } from "./theme";
+import { skyPalette, type Theme } from "./theme";
 
 interface Props {
   theme: Theme;
+  fontFamily: string;
+  fontRevision: number;
   sky: Sky;
   view: View;
   setView: Dispatch<SetStateAction<View>>;
@@ -42,39 +43,14 @@ interface Props {
   terrain: TerrainProfile | null;
   starMagnitude: number;
 }
-type PlottedObject = {
-  o: SkyObject;
-  x: number;
-  y: number;
-  r: number;
-  disk?: Path2D;
-};
 export default function SkyMap(p: Props) {
   const colors = skyPalette[p.theme];
   const satelliteTrails = useSatelliteTrails(p.sky, p.layers.satellite && p.satelliteTrails);
   const host = useRef<HTMLDivElement>(null),
     canvas = useRef<HTMLCanvasElement>(null),
     overlay = useRef<HTMLCanvasElement>(null);
-  const [size, setSize] = useState({ w: 800, h: 700 }),
-    [isDragging, setDragging] = useState(false),
-    [hover, setHover] = useState<{
-      object: SkyObject;
-      x: number;
-      y: number;
-    } | null>(null);
-  const points = useRef<PlottedObject[]>([]),
-    drag = useRef<{
-      x: number;
-      y: number;
-      az: number;
-      alt: number;
-      moved: boolean;
-      id: number;
-      objectId?: string;
-      field: boolean;
-      view: View;
-    } | null>(null),
-    pinch = useRef(new Map<number, { x: number; y: number }>());
+  const [size, setSize] = useState({ w: 800, h: 700 });
+  const points = useRef<PlottedObject[]>([]);
   const personal = p.view.mode === "personal",
     bottom = 110,
     cx = size.w / 2,
@@ -136,10 +112,8 @@ export default function SkyMap(p: Props) {
         Math.abs(y - cy) <= r - margin &&
         !!unproject(x, y, p.view, cx, cy, r, false, aspect)
       : Math.hypot(x - cx, y - cy) <= r - margin;
-  useEffect(
-    () => setHover(null),
-    [p.view, p.selected?.id, p.starMagnitude, p.terrain],
-  );
+  const { hover, isDragging, drag, pointerDown, pointerMove, pointerUp, pointerCancel, pointerLeave } =
+    useSkyMapPointer(p, { size, cx, cy, r, aspect, getPoint, inside }, host, canvas, points);
   useEffect(() => {
     if (!host.current) return;
     const ro = new ResizeObserver(([e]) =>
@@ -159,8 +133,7 @@ export default function SkyMap(p: Props) {
     const c = el.getContext("2d")!;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, size.w, size.h);
-    const font = "11px Departure, monospace";
-    c.font = font;
+    c.font = `11px ${p.fontFamily}`;
     c.textBaseline = "middle";
     c.save();
     clipViewport(c);
@@ -220,162 +193,9 @@ export default function SkyMap(p: Props) {
             0.8,
           );
     }
-    const active = (o: SkyObject) =>
-      o.kind === "star"
-        ? p.layers.star
-        : o.kind === "planet"
-          ? p.layers.planet
-          : o.kind === "satellite"
-            ? p.layers.satellite
-            : p.layers.galaxy;
-    const plotted: PlottedObject[] = [];
-    const starGroups = new Map<string, { x: number; y: number; r: number }[]>();
-    const paintStars = () => {
-      for (const [color, group] of starGroups) {
-        c.fillStyle = color;
-        c.beginPath();
-        for (const point of group) {
-          c.moveTo(point.x + point.r, point.y);
-          c.arc(point.x, point.y, point.r, 0, Math.PI * 2);
-        }
-        c.fill();
-      }
-      starGroups.clear();
-    };
-    for (const o of p.sky.objects) {
-      // createSky places stars first. Batch their fills, then paint disks and
-      // other objects above them, retaining individual hit targets and radii.
-      if (o.kind !== "star" && starGroups.size) paintStars();
-      if (
-        o.alt + (o.angularDiameter || 0) / 2 < 0 ||
-        // Stars remain visible through the translucent terrain drawn below.
-        (terrain && o.kind !== "star" &&
-          o.alt + (o.angularDiameter || 0) / 2 <
-            horizonAltitude(terrain, o.az)) ||
-        !active(o) ||
-        (o.kind === "star" && o.mag > p.starMagnitude)
-      )
-        continue;
-      const s = getPoint(o.az, o.alt);
-      if (!s || (!s.inside && !o.angularDiameter)) continue;
-      let radius = 1;
-      let disk: Path2D | undefined;
-      if (o.angularDiameter) {
-        const limb = angularLimb(o.az, o.alt, o.angularDiameter)
-          .map((h) => getPoint(h.az, h.alt))
-          .filter((q): q is NonNullable<typeof q> => !!q);
-        if (!limb.length) continue;
-        radius = Math.max(...limb.map((q) => Math.hypot(q.x - s.x, q.y - s.y)));
-        const xs = limb.map((q) => q.x),
-          ys = limb.map((q) => q.y);
-        if (
-          Math.max(...xs) < cx - r * aspect ||
-          Math.min(...xs) > cx + r * aspect ||
-          Math.max(...ys) < cy - r ||
-          Math.min(...ys) > cy + r
-        )
-          continue;
-        c.fillStyle = o.id === "Sun" ? colors.sun : colors.moon;
-        disk = new Path2D();
-        limb.forEach((q, i) =>
-          i ? disk!.lineTo(q.x, q.y) : disk!.moveTo(q.x, q.y),
-        );
-        disk.closePath();
-        c.fill(disk);
-      } else if (o.kind === "star") {
-        radius = starRadius(o.mag, p.view.mode === "allsky" ? 180 : p.view.fov);
-        const color =
-          o.mag < 2
-            ? colors.starBright
-            : o.mag < 7.5
-              ? colors.starMedium
-              : colors.starFaint;
-        const group = starGroups.get(color) ?? [];
-        group.push({ x: s.x, y: s.y, r: radius });
-        starGroups.set(color, group);
-        if (o.mag < 1) {
-          c.strokeStyle = colors.muted;
-          c.lineWidth = 0.6;
-          c.beginPath();
-          c.moveTo(s.x - 5, s.y);
-          c.lineTo(s.x + 5, s.y);
-          c.moveTo(s.x, s.y - 5);
-          c.lineTo(s.x, s.y + 5);
-          c.stroke();
-        }
-      } else if (o.kind === "planet") {
-        radius = 4;
-        c.strokeStyle = colors.object;
-        c.lineWidth = 1;
-        c.beginPath();
-        c.arc(s.x, s.y, radius + 4, 0, Math.PI * 2);
-        c.stroke();
-        c.fillStyle = colors.object;
-        c.beginPath();
-        c.arc(s.x, s.y, 2, 0, Math.PI * 2);
-        c.fill();
-      } else if (o.kind === "satellite") {
-        radius = 4;
-        c.fillStyle = o.sunlit ? colors.satellite : colors.shadow;
-        c.fillRect(s.x - 1.5, s.y - 1.5, 3, 3);
-      } else {
-        radius = 5;
-        c.strokeStyle = colors.object;
-        c.lineWidth = 0.8;
-        c.beginPath();
-        if (o.kind === "galaxy") {
-          radius = 5.5;
-          c.setLineDash([3, 2.5]);
-          c.arc(s.x, s.y, radius, 0, Math.PI * 2);
-        } else if (o.kind === "cluster") {
-          c.setLineDash([1.3, 2]);
-          c.arc(s.x, s.y, 5, 0, Math.PI * 2);
-        } else {
-          c.moveTo(s.x, s.y - 5);
-          c.lineTo(s.x + 5, s.y);
-          c.lineTo(s.x, s.y + 5);
-          c.lineTo(s.x - 5, s.y);
-          c.closePath();
-        }
-        c.stroke();
-        c.setLineDash([]);
-      }
-      plotted.push({ o, x: s.x, y: s.y, r: radius, disk });
-    }
-    paintStars();
+    const plotted = drawSkyObjects(c, p, { getPoint, cx, cy, r, aspect }, terrain, colors);
     points.current = plotted;
-    if (p.layers.satellite && p.satelliteTrails) {
-      const sats = plotted.filter((q) => q.o.kind === "satellite");
-      for (const q of sats) {
-        const time = p.sky.time.getTime();
-        const pass = satelliteTrails.get(q.o.id);
-        if (!pass) continue;
-        const split = passSplit(pass, time);
-        const strokeTrail = (future: boolean) => {
-          c.strokeStyle = colors.trail;
-          c.lineWidth = 0.9;
-          c.setLineDash(future ? [3, 4] : []);
-          c.beginPath();
-          let previous = false;
-          const point = (az: number, alt: number) => {
-            const s = getPoint(az, alt);
-            if (!s || alt < 0) { previous = false; return; }
-            if (previous) c.lineTo(s.x, s.y);
-            else c.moveTo(s.x, s.y);
-            previous = true;
-          };
-          if (future) point(q.o.az, q.o.alt);
-          const start = future ? split + (pass[split] === time ? 3 : 0) : 0;
-          for (let i = start; i < (future ? pass.length : split); i += 3)
-            point(pass[i + 1], pass[i + 2]);
-          if (!future) point(q.o.az, q.o.alt);
-          c.stroke();
-        };
-        strokeTrail(false);
-        strokeTrail(true);
-      }
-      c.setLineDash([]);
-    }
+    drawSatelliteTrails(c, p, plotted, satelliteTrails, getPoint, colors);
     if (terrain) {
       const rim = skyline();
       c.save();
@@ -494,7 +314,7 @@ export default function SkyMap(p: Props) {
     c.fillStyle = colors.muted;
     c.textAlign = "center";
     if (personal) {
-      c.font = "9px Departure, monospace";
+      c.font = `9px ${p.fontFamily}`;
       for (let i = 0; i <= 4; i++) {
         const az = wrap(p.view.az + (i - 2) * 22.5),
           point = getPoint(az, 0);
@@ -566,6 +386,8 @@ export default function SkyMap(p: Props) {
     p.terrain,
     p.starMagnitude,
     p.theme,
+    p.fontFamily,
+    p.fontRevision,
     p.telescope.connected,
     size,
   ]);
@@ -676,7 +498,7 @@ export default function SkyMap(p: Props) {
           c.moveTo(center.x, center.y + 19);
           c.lineTo(center.x, center.y + 25);
           c.stroke();
-          c.font = "10px Departure, monospace";
+          c.font = `10px ${p.fontFamily}`;
           c.fillStyle = colors.ink;
           c.fillText(
             t.moving ? "SLEWING" : "TELESCOPE",
@@ -717,168 +539,10 @@ export default function SkyMap(p: Props) {
     p.layers.satellite,
     p.terrain,
     p.theme,
+    p.fontFamily,
+    p.fontRevision,
     size,
   ]);
-  useEffect(() => {
-    const node = host.current;
-    if (!node) return;
-    const wheel = (e: WheelEvent) => {
-      e.preventDefault();
-      const delta =
-        e.deltaY * (e.deltaMode === 1 ? 16 : e.deltaMode === 2 ? size.h : 1);
-      const rect = node.getBoundingClientRect();
-      // Trackpad events can arrive before React commits the preceding event.
-      // Apply each delta to the latest queued camera, never a render's old view.
-      p.setView((view) =>
-        zoomAt(
-          view,
-          (view.mode === "allsky" ? 150 : view.fov) * Math.exp(delta * 0.0015),
-          e.clientX - rect.left,
-          e.clientY - rect.top,
-          cx,
-          cy,
-          r,
-          aspect,
-        ),
-      );
-      setHover(null);
-    };
-    node.addEventListener("wheel", wheel, { passive: false });
-    return () => node.removeEventListener("wheel", wheel);
-  }, [p.setView, size, cx, cy, r, aspect]);
-  const position = (e: React.PointerEvent) => {
-    const b = host.current!.getBoundingClientRect();
-    return { x: e.clientX - b.left, y: e.clientY - b.top };
-  };
-  const hitObject = (pos: { x: number; y: number }, tolerance: number) => {
-    if (!inside(pos.x, pos.y)) return null;
-    const c = canvas.current?.getContext("2d");
-    // Use the filled limb, so an enlarged disk covers stars and stays clickable at any zoom.
-    if (c) {
-      c.save();
-      c.resetTransform();
-      const disk = points.current.find(
-        (q) => q.disk && c.isPointInPath(q.disk, pos.x, pos.y),
-      );
-      c.restore();
-      if (disk) return disk;
-    }
-    let nearest: PlottedObject | null = null,
-      dist = tolerance;
-    for (const q of points.current) {
-      const dd = Math.max(
-        0,
-        Math.hypot(q.x - pos.x, q.y - pos.y) -
-          (q.disk ? Math.min(q.r, 2) : q.r),
-      );
-      if (dd < dist) {
-        dist = dd;
-        nearest = q;
-      }
-    }
-    return nearest;
-  };
-  const pointerDown = (e: React.PointerEvent) => {
-    const pos = position(e);
-    if (!inside(pos.x, pos.y)) return;
-    pinch.current.set(e.pointerId, pos);
-    host.current?.setPointerCapture(e.pointerId);
-    const h = p.telescope.connected
-      ? equatorialToHorizontal(
-          p.telescope.ra,
-          p.telescope.dec,
-          p.sky.time,
-          p.sky.site,
-        )
-      : null;
-    const field = h ? getPoint(h.az, h.alt) : null;
-    drag.current = {
-      ...pos,
-      az: p.view.az,
-      alt: p.view.alt,
-      moved: false,
-      id: e.pointerId,
-      objectId: hitObject(pos, e.pointerType === "touch" ? 24 : 16)?.o.id,
-      view: p.view,
-      field:
-        !!field?.inside && Math.hypot(pos.x - field.x, pos.y - field.y) < 26,
-    };
-    setHover(null);
-    setDragging(false);
-  };
-  const pointerMove = (e: React.PointerEvent) => {
-    const pos = position(e);
-    if (pinch.current.size === 2 && pinch.current.has(e.pointerId)) {
-      const old = [...pinch.current.values()],
-        before = Math.hypot(old[0].x - old[1].x, old[0].y - old[1].y);
-      pinch.current.set(e.pointerId, pos);
-      const after = [...pinch.current.values()],
-        distance = Math.hypot(after[0].x - after[1].x, after[0].y - after[1].y);
-      if (before && distance) {
-        const oldX = (old[0].x + old[1].x) / 2,
-          oldY = (old[0].y + old[1].y) / 2;
-        const newX = (after[0].x + after[1].x) / 2,
-          newY = (after[0].y + after[1].y) / 2;
-        p.setView((view) => {
-          const anchor = unproject(oldX, oldY, view, cx, cy, r, false, aspect);
-          const zoomed = zoomAt(
-            view,
-            ((view.mode === "allsky" ? 150 : view.fov) * before) / distance,
-            oldX, oldY, cx, cy, r, aspect,
-          );
-          return anchor
-            ? anchorDirection(zoomed, anchor, newX, newY, cx, cy, r, aspect)
-            : zoomed;
-        });
-      }
-      if (drag.current) drag.current.moved = true;
-      setDragging(true);
-      return;
-    }
-    if (drag.current) {
-      const d = drag.current,
-        dx = pos.x - d.x,
-        dy = pos.y - d.y;
-      if (Math.hypot(dx, dy) > 4 && !d.moved) {
-        d.moved = true;
-        setDragging(true);
-      }
-      if (d.moved && !p.aiming && !d.field) {
-        const anchor = unproject(d.x, d.y, d.view, cx, cy, r, false, aspect);
-        p.setView(
-          anchor
-            ? anchorDirection(d.view, anchor, pos.x, pos.y, cx, cy, r, aspect)
-            : {
-                ...p.view,
-                mode: "horizon",
-                az: wrap(d.az - (dx * p.view.fov) / (2 * r)),
-                alt: clamp(d.alt + (dy * p.view.fov) / (2 * r), -30, 89),
-              },
-        );
-        setHover(null);
-      }
-      return;
-    }
-    const nearest = hitObject(pos, e.pointerType === "touch" ? 24 : 16);
-    setHover(nearest ? { object: nearest.o, x: pos.x, y: pos.y } : null);
-  };
-  const pointerUp = (e: React.PointerEvent) => {
-    const pos = position(e),
-      d = drag.current;
-    pinch.current.delete(e.pointerId);
-    setDragging(false);
-    if (!d) return;
-    if (p.aiming || (d.field && d.moved)) {
-      const h = unproject(pos.x, pos.y, p.view, cx, cy, r, false, aspect);
-      if (h) p.aim(h.az, h.alt);
-    } else if (!d.moved) {
-      const object =
-        (d.objectId ? p.sky.byId.get(d.objectId) : null) ??
-        hitObject(pos, e.pointerType === "touch" ? 24 : 16)?.o;
-      if (object) p.select(object);
-    }
-    drag.current = null;
-  };
   return (
     <div
       className={`sky-canvas ${p.aiming ? "aiming" : ""} ${hover ? "over-object" : ""} ${isDragging ? "dragging" : ""}`}
@@ -887,12 +551,8 @@ export default function SkyMap(p: Props) {
       onDragStart={(e) => e.preventDefault()}
       onPointerMove={pointerMove}
       onPointerUp={pointerUp}
-      onPointerCancel={() => {
-        drag.current = null;
-        pinch.current.clear();
-        setDragging(false);
-      }}
-      onPointerLeave={() => setHover(null)}
+      onPointerCancel={pointerCancel}
+      onPointerLeave={pointerLeave}
       aria-label="Interactive sky map. Drag to look around, scroll or pinch to zoom. Select objects using the search or visible-object list."
       role="img"
     >

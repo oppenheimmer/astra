@@ -27,7 +27,10 @@ spec.loader.exec_module(refresh_satellites)
 
 
 def element(norad, epoch='2026-09-09T04:00:00'):
-    return {'NORAD_CAT_ID': norad, 'EPOCH': epoch, 'OBJECT_NAME': f'OBJ-{norad}'}
+    return {'NORAD_CAT_ID': norad, 'EPOCH': epoch, 'OBJECT_NAME': f'OBJ-{norad}',
+            'MEAN_MOTION': 15.5, 'ECCENTRICITY': 0.001, 'INCLINATION': 51.6,
+            'RA_OF_ASC_NODE': 10, 'ARG_OF_PERICENTER': 20, 'MEAN_ANOMALY': 30,
+            'BSTAR': 0.00001, 'MEAN_MOTION_DOT': 0, 'MEAN_MOTION_DDOT': 0}
 
 
 def group(norads):
@@ -107,9 +110,9 @@ class Refresh(unittest.TestCase):
 
     def test_the_visual_group_wins_a_duplicate_over_starlink(self):
         self.seed('starlink', {'fetchedAt': 'x', 'elements': [
-            {'NORAD_CAT_ID': 7, 'EPOCH': 'e', 'OBJECT_NAME': 'STARLINK-DUP'}]})
+            {**element(7), 'OBJECT_NAME': 'STARLINK-DUP'}]})
         payload = self.build({'visual': {'fetchedAt': 'y', 'elements': [
-            {'NORAD_CAT_ID': 7, 'EPOCH': 'e', 'OBJECT_NAME': 'ISS'}]},
+            {**element(7), 'OBJECT_NAME': 'ISS'}]},
             'starlink': NotModified('nothing new')})
         names = [e['OBJECT_NAME'] for e in payload['elements'] if e['NORAD_CAT_ID'] == 7]
         self.assertEqual(names, ['ISS'])
@@ -120,7 +123,8 @@ class Refresh(unittest.TestCase):
         self.assertLessEqual({'fetchedAt', 'source', 'elements', 'catalogue', 'groups'}, payload.keys())
         self.assertFalse(payload['cached'], 'a freshly built payload is not a stale fallback')
         datetime.fromisoformat(payload['fetchedAt'])
-        self.assertEqual(payload['catalogue']['objects'], {'1': {'objectType': 'PAY'}})
+        self.assertEqual(payload['catalogue']['objects'], {'1': {'objectType': 'PAY', 'owner': '',
+                                                                'launchDate': '', 'internationalId': ''}})
         self.assertTrue(all('EPOCH' in e for e in payload['elements']))
 
     def test_a_run_with_no_usable_data_anywhere_fails_loudly(self):
@@ -129,10 +133,20 @@ class Refresh(unittest.TestCase):
                 self.build({'visual': requests.Timeout('down'), 'starlink': requests.Timeout('down')})
 
     def test_invalid_upstream_elements_never_reach_the_payload(self):
+        self.seed('visual', group([1]))
         self.seed('starlink', group([100]))
-        with self.assertRaises(ValueError):
-            self.build({'visual': {'fetchedAt': 'x', 'elements': [{'no': 'norad id'}]},
-                        'starlink': NotModified('nothing new')})
+        payload = self.build({'visual': {'fetchedAt': 'x', 'elements': [{'no': 'norad id'}]},
+                            'starlink': NotModified('nothing new')})
+        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1, 100})
+        saved = json.loads((self.dir / 'source/visual.json').read_text())
+        self.assertEqual(saved['elements'][0]['NORAD_CAT_ID'], 1)
+
+    def test_saved_and_published_elements_are_normalized_before_replacing_previous_data(self):
+        payload = self.build({'visual': group(['001']), 'starlink': group([1, 2])})
+        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1, 2})
+        saved = json.loads((self.dir / 'source/visual.json').read_text())
+        self.assertEqual(saved['elements'][0]['NORAD_CAT_ID'], 1)
+        self.assertTrue(saved['elements'][0]['EPOCH'].endswith('Z'))
 
 
 if __name__ == '__main__':

@@ -1,10 +1,12 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_MAGNITUDE,
+  readMonospaceFont,
   readSatelliteTrails,
   readSite,
   readStarMagnitude,
   saveSatelliteTrails,
+  saveMonospaceFont,
   saveSite,
   saveStarMagnitude,
   STORAGE_KEYS,
@@ -72,6 +74,15 @@ describe("Saved observing site", () => {
 });
 
 describe("Display preferences", () => {
+  it("restores only a supported monospace font ID", () => {
+    expect(readMonospaceFont()).toBe("departure");
+    saveMonospaceFont("system");
+    expect(readMonospaceFont()).toBe("system");
+    storage.setItem(STORAGE_KEYS.font, "Arial; background: url(https://example.com)");
+    expect(readMonospaceFont()).toBe("departure");
+    storage.setItem(STORAGE_KEYS.font, "removed-font");
+    expect(readMonospaceFont()).toBe("departure");
+  });
   it("clamps the saved star magnitude and defaults when unreadable", () => {
     expect(readStarMagnitude()).toBe(DEFAULT_MAGNITUDE);
     saveStarMagnitude(12.5);
@@ -97,5 +108,7 @@ describe("Display preferences", () => {
     expect(() => writeStored("k", "v")).not.toThrow();
     expect(readSite()).toBeNull();
     expect(readStarMagnitude()).toBe(DEFAULT_MAGNITUDE);
+    expect(readMonospaceFont()).toBe("departure");
+    expect(() => saveMonospaceFont("courier")).not.toThrow();
   });
 });

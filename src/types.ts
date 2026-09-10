@@ -1,3 +1,5 @@
+import type { SatRec } from "satellite.js";
+
 export type Kind =
   "star" | "planet" | "galaxy" | "nebula" | "cluster" | "satellite";
 export interface Star {
@@ -57,12 +59,30 @@ export interface SkyObject {
   sunlit?: boolean;
   stale?: boolean;
 }
+/** Validated and normalized CelesTrak elements used by the SGP4 workers. */
+export interface OrbitalElements {
+  [key: string]: unknown;
+  NORAD_CAT_ID: number;
+  OBJECT_NAME: string;
+  OBJECT_ID: string;
+  EPOCH: string;
+  MEAN_MOTION: number;
+  ECCENTRICITY: number;
+  INCLINATION: number;
+  RA_OF_ASC_NODE: number;
+  ARG_OF_PERICENTER: number;
+  MEAN_ANOMALY: number;
+  BSTAR: number;
+  MEAN_MOTION_DOT: number;
+  MEAN_MOTION_DDOT: number;
+  ELEMENT_SET_NO: number;
+}
 export interface Satellite {
   id: string;
   name: string;
   epoch: string;
-  record: any;
-  elements: Record<string, any>;
+  record: SatRec;
+  elements: OrbitalElements;
   metadata?: SatelliteMetadata;
 }
 export interface SatelliteMetadata {
@@ -79,15 +99,22 @@ export interface SatelliteCatalogue {
 export interface SatelliteData {
   fetchedAt: string;
   source: string;
-  elements: Record<string, any>[];
+  elements: OrbitalElements[];
   cached?: boolean;
   catalogue?: SatelliteCatalogue;
 }
+export interface FeatureCollection<Properties, Coordinates> {
+  features: {
+    id: string;
+    properties: Properties;
+    geometry: { coordinates: Coordinates };
+  }[];
+}
 export interface Catalogue {
   stars: Star[];
-  messier: any;
-  lines: any;
-  constellations: any;
+  messier: FeatureCollection<{ type: string; alt: string; mag: number; dim: string }, [number, number]>;
+  lines: FeatureCollection<{ rank: string }, [number, number][][]>;
+  constellations: FeatureCollection<{ name: string }, [number, number]>;
 }
 export interface Sky {
   objects: SkyObject[];

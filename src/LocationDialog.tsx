@@ -1,39 +1,13 @@
-import type { Dispatch, SetStateAction } from "react";
-import { fetchGroundElevation } from "./api";
 import { timeZoneAt } from "./local-time";
 import LocationSearch from "./LocationSearch";
 import { observerHeight, presets } from "./sites";
-import type { Site } from "./types";
-
-interface Props {
-  draft: Site;
-  setDraft: Dispatch<SetStateAction<Site>>;
-  message: string;
-  setMessage: (message: string) => void;
-  lookupBusy: boolean;
-  /** Must be referentially stable: LocationSearch reports busy state through an effect. */
-  setLookupBusy: (busy: boolean) => void;
-  onLocate: () => void;
-  onApply: (site: Site) => void;
-  onClose: () => void;
-}
+import type { LocationWorkflow } from "./useLocationWorkflow";
 
 /** Choose the observing site: browser location, Swiss address, a preset city, or typed coordinates. */
-export default function LocationDialog(p: Props) {
-  const { draft, setDraft } = p;
-  async function lookupElevation() {
-    const { lat, lon } = draft;
-    p.setMessage("Looking up ground elevation…");
-    try {
-      const result = await fetchGroundElevation({ lat, lon });
-      setDraft((s) => (s.lat === lat && s.lon === lon ? { ...s, elevation: result.elevation } : s));
-      p.setMessage(`Ground elevation: ${result.elevation} m · ${result.source}`);
-    } catch (error) {
-      p.setMessage(error instanceof Error ? error.message : "Enter elevation manually.");
-    }
-  }
+export default function LocationDialog({ workflow: p }: { workflow: LocationWorkflow }) {
+  const { draft, edit: setDraft } = p;
   return (
-    <div className="modal-backdrop" onClick={p.onClose}>
+    <div className="modal-backdrop" onClick={p.close}>
       <div
         className="modal location-modal"
         role="dialog"
@@ -43,12 +17,12 @@ export default function LocationDialog(p: Props) {
       >
         <div className="modal-title">
           <h2 id="location-title">YOUR PLACE ON EARTH</h2>
-          <button aria-label="Close location settings" onClick={p.onClose}>
+          <button aria-label="Close location settings" onClick={p.close}>
             ×
           </button>
         </div>
         <p>Choose an address, a place or your browser’s location. The clock follows the time zone here.</p>
-        <button className="primary" onClick={p.onLocate}>
+        <button className="primary" onClick={p.locate}>
           ◎ USE MY CURRENT LOCATION
         </button>
         {p.message && (
@@ -56,7 +30,8 @@ export default function LocationDialog(p: Props) {
             {p.message}
           </p>
         )}
-        <LocationSearch setSite={setDraft} onBusy={p.setLookupBusy} />
+        {p.busy && <button type="button" onClick={p.cancel}>CANCEL LOOKUP</button>}
+        <LocationSearch workflow={p} />
         <label>
           QUICK LOCATION
           <select
@@ -77,7 +52,7 @@ export default function LocationDialog(p: Props) {
         <form
           onSubmit={(e) => {
             e.preventDefault();
-            if (!p.lookupBusy) p.onApply(draft);
+            p.apply();
           }}
         >
           <label>
@@ -128,7 +103,7 @@ export default function LocationDialog(p: Props) {
               onChange={(e) => setDraft((s) => ({ ...s, elevation: +e.target.value }))}
             />
           </label>
-          <button type="button" className="lookup-elevation" onClick={() => void lookupElevation()}>
+          <button type="button" className="lookup-elevation" onClick={() => void p.lookupElevation()}>
             LOOK UP GROUND ELEVATION ↗
           </button>
           <label>
@@ -146,7 +121,7 @@ export default function LocationDialog(p: Props) {
           <p className="small-note">
             Include the telescope stand or balcony height. Local time: {timeZoneAt(draft.lat, draft.lon)}.
           </p>
-          <button className="primary" type="submit" disabled={p.lookupBusy}>
+          <button className="primary" type="submit" disabled={p.busy}>
             UPDATE SKY ↗
           </button>
         </form>

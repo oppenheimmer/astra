@@ -1,11 +1,13 @@
 // @vitest-environment jsdom
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App";
 import { STORAGE_KEYS } from "../src/preferences";
 import { SATELLITE_DATA_URL } from "../src/api";
+import { monospaceFamily } from "../src/fonts";
+import { SATELLITE_MAX_DAYS } from "../src/sky";
 
 vi.setConfig({ testTimeout: 30000 });
 
@@ -82,6 +84,7 @@ beforeEach(() => {
   vi.stubGlobal("ResizeObserver", ResizeObserverStub);
   vi.stubGlobal("Path2D", Path2DStub);
   document.documentElement.dataset.theme = "light";
+  document.documentElement.style.removeProperty("--font-mono");
 });
 afterEach(() => {
   cleanup();
@@ -98,6 +101,39 @@ async function mount() {
 }
 
 describe("Starmap desk", () => {
+  it("remembers the font dropdown and redraws paused canvas labels when the face loads", async () => {
+    localStorage.setItem(STORAGE_KEYS.font, "courier");
+    const fontDescriptor = Object.getOwnPropertyDescriptor(document, "fonts");
+    const finishLoads: Array<() => void> = [];
+    const load = vi.fn(() => new Promise<FontFace[]>((resolve) => finishLoads.push(() => resolve([]))));
+    Object.defineProperty(document, "fonts", { configurable: true, value: { load } });
+    const getContext = vi.spyOn(HTMLCanvasElement.prototype, "getContext");
+    try {
+      await mount();
+      fireEvent.click(screen.getByRole("button", { name: "Pause time" }));
+      const dropdown = screen.getByRole("combobox", { name: "Monospace font" }) as HTMLSelectElement;
+      expect(dropdown.value).toBe("courier");
+      expect(document.documentElement.style.getPropertyValue("--font-mono")).toBe(monospaceFamily("courier"));
+
+      getContext.mockClear();
+      fireEvent.change(dropdown, { target: { value: "departure" } });
+      expect(localStorage.getItem(STORAGE_KEYS.font)).toBe("departure");
+      expect(document.documentElement.style.getPropertyValue("--font-mono")).toBe(monospaceFamily("departure"));
+      expect(load).toHaveBeenLastCalledWith(`11px ${monospaceFamily("departure")}`);
+      expect(getContext.mock.results.some((result) => result.value.font === `11px ${monospaceFamily("departure")}`)).toBe(true);
+
+      getContext.mockClear();
+      await act(async () => { finishLoads[0](); });
+      expect(getContext).not.toHaveBeenCalled();
+      await act(async () => { finishLoads[1](); });
+      expect(getContext.mock.results.some((result) => result.value.font === `11px ${monospaceFamily("departure")}`)).toBe(true);
+    } finally {
+      getContext.mockRestore();
+      if (fontDescriptor) Object.defineProperty(document, "fonts", fontDescriptor);
+      else Reflect.deleteProperty(document, "fonts");
+    }
+  });
+
   it("mounts from the bundled catalogue with the preview site and a bright star selected", async () => {
     await mount();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("STARMAP");
@@ -175,6 +211,14 @@ describe("Starmap desk", () => {
     const dialog = screen.getByRole("dialog");
     const fetchedAt = published().fetchedAt.slice(0, 19).replace("T", " ");
     await waitFor(() => expect(within(dialog).getByText(/Last orbital-data fetch/).textContent).toContain(fetchedAt));
+    const close = within(dialog).getByRole("button", { name: "Close about" });
+    close.focus();
+    fireEvent.keyDown(close, { key: "/" });
+    fireEvent.keyDown(close, { key: "+" });
+    expect(document.activeElement).toBe(close);
+    expect(screen.getByText("FIELD 110°")).toBeTruthy();
+    fireEvent.keyDown(close, { key: "Tab", shiftKey: true });
+    expect(dialog.contains(document.activeElement)).toBe(true);
     fireEvent.keyDown(document, { key: "Escape" });
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
   });
@@ -182,7 +226,7 @@ describe("Starmap desk", () => {
   it("drives the simulated telescope from the panel and the keyboard", async () => {
     await mount();
     fireEvent.click(screen.getByRole("button", { name: "TELESCOPE" }));
-    expect(screen.getByText("SIMULATOR READY")).toBeTruthy();
+    expect(await screen.findByText("SIMULATOR READY")).toBeTruthy();
     fireEvent.click(screen.getByRole("button", { name: /CONNECT SIMULATOR/ }));
     expect(screen.getByText("SIMULATING TRACKING")).toBeTruthy();
     expect(screen.getByText("Simulator connected. No hardware is being controlled.")).toBeTruthy();
@@ -190,13 +234,53 @@ describe("Starmap desk", () => {
     expect(slew.disabled).toBe(false);
     fireEvent.click(slew);
     expect(screen.getByText("Simulated slew started · 2°/second.")).toBeTruthy();
+    const theme = screen.getByRole("button", { name: "Switch to dark mode" });
+    expect(fireEvent.keyDown(theme, { code: "Space", key: " " })).toBe(true);
+    expect(screen.getByText("SIMULATING SLEW")).toBeTruthy();
     fireEvent.keyDown(window, { code: "Space", key: " " });
     expect(screen.getByText("Simulator stopped.")).toBeTruthy();
     expect(screen.getByText("SIMULATOR STOPPED")).toBeTruthy();
     fireEvent.change(screen.getByLabelText("Field of view preset"), { target: { value: "camera" } });
     expect((screen.getByLabelText("Field width in degrees") as HTMLInputElement).value).toBe("0.321");
+    fireEvent.click(within(screen.getByRole("group", { name: "Control panel" })).getByRole("button", { name: "SKY" }));
+    fireEvent.click(screen.getByRole("button", { name: "TELESCOPE" }));
+    expect((screen.getByLabelText("Field of view preset") as HTMLSelectElement).value).toBe("camera");
     fireEvent.click(screen.getByRole("button", { name: /DISCONNECT SIMULATOR/ }));
     expect(screen.getByText("SIMULATOR READY")).toBeTruthy();
+  });
+
+  it("disables saving during manual elevation lookup and persists its completed result", async () => {
+    let resolve!: (response: ReturnType<typeof respond>) => void;
+    vi.stubGlobal("fetch", vi.fn((url: string) => url.startsWith("/api/elevation")
+      ? new Promise<ReturnType<typeof respond>>((done) => { resolve = done; }) : offlineFetch(url)));
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: /EDIT/ }));
+    const dialog = screen.getByRole("dialog");
+    fireEvent.click(within(dialog).getByRole("button", { name: /LOOK UP GROUND ELEVATION/ }));
+    const apply = within(dialog).getByRole("button", { name: /UPDATE SKY/ }) as HTMLButtonElement;
+    expect(apply.disabled).toBe(true);
+    fireEvent.submit(apply.closest("form")!);
+    expect(localStorage.getItem(STORAGE_KEYS.site)).toBeNull();
+    await act(async () => resolve(respond(200, { elevation: 1234, source: "test" })));
+    expect(apply.disabled).toBe(false);
+    fireEvent.click(apply);
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.site)!).elevation).toBe(1234);
+  });
+
+  it("shows orbital feed failures and recovers when retry succeeds", async () => {
+    offline.snapshot = false;
+    await mount();
+    const retry = await screen.findByRole("button", { name: /RETRY SATELLITES/ });
+    expect(retry.closest("p")!.textContent).toContain("Satellites unavailable.");
+    offline.snapshot = true;
+    fireEvent.click(retry);
+    await waitFor(() => expect(screen.queryByRole("button", { name: /RETRY SATELLITES/ })).toBeNull());
+  });
+
+  it("uses the propagation limit in satellite date guidance", async () => {
+    vi.setSystemTime(new Date("2030-09-05T21:00:00Z"));
+    await mount();
+    expect(await screen.findByText(new RegExp(`Choose a date within ${SATELLITE_MAX_DAYS} days`))).toBeTruthy();
   });
 
   it("requests the Gaia layer past magnitude 7.5 and offers a retry when it fails", async () => {

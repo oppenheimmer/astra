@@ -1,28 +1,28 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import type { Layers, Site, SkyObject, Star, View } from "./types";
+import { lazy, useEffect, useMemo, useRef, useState } from "react";
+import DeferredPanel from "./DeferredPanel";
+import type { Layers, SkyObject, Star, View } from "./types";
 import {
   createSky,
   horizontalToEquatorial,
   nextNight,
   satellitePosition,
+  SATELLITE_MAX_DAYS,
   visibleHighlights,
 } from "./sky";
 import { clamp, compass, personalView, wrap } from "./projection";
 import SkyMap from "./SkyMap";
 import type { Theme } from "./theme";
-import { fetchGroundElevation } from "./api";
+import { isMonospaceFont, MONOSPACE_FONTS } from "./fonts";
 import { localDateTime, localDay, timeZoneAt, zoneLabel } from "./local-time";
 import {
   initialTheme,
   readSatelliteTrails,
-  readSite,
   readStarMagnitude,
   saveSatelliteTrails,
-  saveSite,
   saveStarMagnitude,
   saveTheme,
 } from "./preferences";
-import { locationLines, observerHeight, previewSite, siteProblem } from "./sites";
+import { locationLines, observerHeight } from "./sites";
 import { deepFieldLimit, DEEP_MAGNITUDE, OVERVIEW_MAGNITUDE, mergeStars } from "./star-catalogue";
 import { horizonAltitude } from "./terrain";
 import { LayerSymbol, layerLabels, SectionTitle, signature, type LayerKey } from "./ui";
@@ -32,6 +32,9 @@ import { useDeepStars } from "./useDeepStars";
 import { useDialogFocus } from "./useDialogFocus";
 import { useGaiaOverview } from "./useGaiaOverview";
 import { useHorizonProfile } from "./useHorizonProfile";
+import { useLocationWorkflow } from "./useLocationWorkflow";
+import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
+import { useMonospaceFont } from "./useMonospaceFont";
 import { useObservingClock } from "./useObservingClock";
 import { useSatelliteFeed } from "./useSatelliteFeed";
 import { useSatelliteSky } from "./useSatelliteSky";
@@ -39,7 +42,7 @@ import { useTelescopeSimulator } from "./useTelescopeSimulator";
 import AboutDialog from "./AboutDialog";
 import LocationDialog from "./LocationDialog";
 import ObjectExplorer from "./ObjectExplorer";
-import TelescopePanel from "./TelescopePanel";
+const TelescopePanel = lazy(() => import("./TelescopePanel"));
 import TimeDeck from "./TimeDeck";
 
 const LAYER_KEYS: LayerKey[] = ["star", "planet", "galaxy", "satellite", "constellation", "highlights", "grid"];
@@ -55,6 +58,7 @@ export default function App() {
   const [controlPanel, setControlPanel] = useState<ControlPanel>("sky");
   const [mobilePanel, setMobilePanel] = useState<MobilePanel>("sky");
   const [theme, setTheme] = useState<Theme>(initialTheme);
+  const { font, setFont, fontFamily, fontRevision } = useMonospaceFont();
   useEffect(() => {
     document.documentElement.dataset.theme = theme;
     document
@@ -64,12 +68,15 @@ export default function App() {
   }, [theme]);
 
   const { catalogue, error: loadError } = useCatalogue();
-  const { satellites, data: satelliteData } = useSatelliteFeed();
-  const [site, setSite] = useState<Site>(() => readSite() ?? previewSite()),
-    [siteOpen, setSiteOpen] = useState(false),
-    [draftSite, setDraftSite] = useState(site),
-    [geoMessage, setGeoMessage] = useState(""),
-    [locationLookupBusy, setLocationLookupBusy] = useState(false);
+  const { satellites, data: satelliteData, error: satelliteError, retry: retrySatellites } = useSatelliteFeed();
+  const [toast, setToast] = useState("");
+  const location = useLocationWorkflow(setToast);
+  const { site, open: siteOpen } = location;
+  const workspace = useRef<HTMLDivElement>(null);
+  const [telescopeVisited, setTelescopeVisited] = useState(false);
+  useEffect(() => {
+    if (controlPanel === "telescope") setTelescopeVisited(true);
+  }, [controlPanel]);
   const clock = useObservingClock();
   const { time } = clock;
   const [view, setView] = useState<View>(HOME_VIEW),
@@ -80,7 +87,6 @@ export default function App() {
     [searchOpen, setSearchOpen] = useState(false),
     [highlight, setHighlight] = useState(true),
     [highlightLimit, setHighlightLimit] = useState(30),
-    [toast, setToast] = useState(""),
     [about, setAbout] = useState(false);
   const [starMagnitude, setStarMagnitude] = useState(readStarMagnitude);
   useEffect(() => saveStarMagnitude(starMagnitude), [starMagnitude]);
@@ -158,36 +164,21 @@ export default function App() {
     const timer = setTimeout(() => setToast(""), 4500);
     return () => clearTimeout(timer);
   }, [toast]);
-  useEffect(() => {
-    const down = (e: KeyboardEvent) => {
-      if (["INPUT", "SELECT", "TEXTAREA"].includes((e.target as HTMLElement).tagName)) return;
-      if (e.key === "Escape") {
-        setAbout(false);
-        setSiteOpen(false);
-        setAiming(false);
-        setSearchOpen(false);
-      }
-      if (e.key === "+" || e.key === "=") zoom(0.6);
-      if (e.key === "-") zoom(1.6);
-      if (!about && !siteOpen && view.mode === "personal" && (e.key === "ArrowLeft" || e.key === "ArrowRight")) {
-        e.preventDefault();
-        setView((v) => ({ ...v, az: wrap(v.az + (e.key === "ArrowLeft" ? -15 : 15)) }));
-      }
-      if (e.code === "Space") {
-        e.preventDefault();
-        sim.stop();
-      }
-      if (e.key === "/") {
-        e.preventDefault();
-        document.getElementById("object-search")?.focus();
-        setSearchOpen(true);
-      }
-    };
-    window.addEventListener("keydown", down);
-    return () => window.removeEventListener("keydown", down);
+  useWorkspaceShortcuts({
+    workspace, modalOpen: siteOpen || about, zoom,
+    turn: view.mode === "personal" ? (degrees) => setView((v) => ({ ...v, az: wrap(v.az + degrees) })) : undefined,
+    stop: sim.stop,
+    search: () => {
+      document.getElementById("object-search")?.focus();
+      setSearchOpen(true);
+    },
+    escape: () => {
+      setAiming(false);
+      setSearchOpen(false);
+    },
   });
   useDialogFocus(siteOpen || about, () => {
-    setSiteOpen(false);
+    location.close();
     setAbout(false);
   });
 
@@ -230,50 +221,6 @@ export default function App() {
       centreView(o, 85, 20);
       if (o.alt < 0) setToast(`${o.name} is below your horizon at this time.`);
     }
-  }
-  function openLocation() {
-    setDraftSite(site);
-    setSiteOpen(true);
-  }
-  function applySite(s: Site) {
-    const problem = siteProblem(s);
-    if (problem) {
-      setGeoMessage(problem);
-      return;
-    }
-    const v = { ...s, preview: false };
-    setSite(v);
-    saveSite(v);
-    setSiteOpen(false);
-    setToast(`Sky updated for ${v.name}.`);
-  }
-  function locate() {
-    setGeoMessage("Requesting your browser location…");
-    if (!navigator.geolocation) {
-      setGeoMessage("Location is unavailable. Enter coordinates below.");
-      return;
-    }
-    navigator.geolocation.getCurrentPosition(
-      async (p) => {
-        const s: Site = {
-          name: "Current location",
-          lat: p.coords.latitude,
-          lon: p.coords.longitude,
-          elevation: 0,
-          heightAboveGround: observerHeight(site),
-        };
-        try {
-          s.elevation = (await fetchGroundElevation(s)).elevation;
-        } catch {
-          setToast("Ground elevation unavailable. You can set it in location settings.");
-        }
-        setDraftSite(s);
-        applySite(s);
-        setGeoMessage("");
-      },
-      () => setGeoMessage("Location was not available. Check the browser's location permission, or enter coordinates below."),
-      { timeout: 12000, maximumAge: 600000 },
-    );
   }
   function aim(az: number, alt: number) {
     if (alt < 0) {
@@ -326,7 +273,7 @@ export default function App() {
   const hemisphere = (value: number, positive: string, negative: string) => (value >= 0 ? positive : negative);
 
   return (
-    <div className="app-shell">
+    <div className="app-shell" ref={workspace}>
       <header className="masthead">
         <div className="earth-time">
           <span className="eyebrow" title={timeZone}>
@@ -341,7 +288,7 @@ export default function App() {
         <div className="brand">
           <h1>STARMAP</h1>
         </div>
-        <button className="location-top" onClick={openLocation}>
+        <button className="location-top" onClick={location.show}>
           <span className="eyebrow">OBSERVER / {site.preview ? "PREVIEW LOCATION" : "EARTH"}</span>
           <span>{site.name.toUpperCase()} ↗</span>
           <small>
@@ -366,6 +313,21 @@ export default function App() {
       </nav>
       <main className={`workspace mobile-${mobilePanel}`}>
         <aside className="left-rail">
+          <label className="field-label font-picker">
+            MONOSPACE FONT
+            <select
+              aria-label="Monospace font"
+              value={font}
+              title="Uses locally installed fonts, with a system monospace fallback."
+              onChange={(event) => {
+                if (isMonospaceFont(event.target.value)) setFont(event.target.value);
+              }}
+            >
+              {MONOSPACE_FONTS.map((option) => (
+                <option key={option.id} value={option.id}>{option.label}</option>
+              ))}
+            </select>
+          </label>
           <div className="control-panel-tabs" role="group" aria-label="Control panel">
             <button aria-pressed={controlPanel === "sky"} className={controlPanel === "sky" ? "active" : ""} onClick={() => setControlPanel("sky")}>SKY</button>
             <button aria-pressed={controlPanel === "telescope"} className={controlPanel === "telescope" ? "active" : ""} onClick={() => setControlPanel("telescope")}>TELESCOPE</button>
@@ -373,7 +335,7 @@ export default function App() {
           <div className="sky-controls" hidden={controlPanel !== "sky"}>
             <section>
               <SectionTitle n="01">OBSERVATION</SectionTitle>
-              <button className="location-card" onClick={openLocation}>
+              <button className="location-card" onClick={location.show}>
                 <span className="location-address">
                   {locationLines(site.name).map((line, i) => <span key={i}>{line}</span>)}
                 </span>
@@ -387,8 +349,8 @@ export default function App() {
               <div className="two-buttons">
                 <button
                   onClick={() => {
-                    setSiteOpen(true);
-                    locate();
+                    location.show();
+                    location.locate();
                   }}
                 >
                   ◎ LOCATE ME
@@ -493,9 +455,15 @@ export default function App() {
                   </div>
                 )}
               </div>
+              {satelliteError && (
+                <p className="small-note" role="status">
+                  {satelliteData ? "Orbital refresh failed. Keeping the last loaded data. " : "Satellites unavailable. "}
+                  {satelliteError} <button onClick={retrySatellites}>RETRY SATELLITES ↗</button>
+                </p>
+              )}
               {satelliteHidden && (
                 <p className="small-note">
-                  Satellite predictions unavailable for this date. Choose a date within 14 days of the orbit data.
+                  Satellite predictions unavailable for this date. Choose a date within {SATELLITE_MAX_DAYS} days of the orbit data.
                 </p>
               )}
             </section>
@@ -531,6 +499,8 @@ export default function App() {
               </div>
             </section>
           </div>
+          {(telescopeVisited || controlPanel === "telescope") && (
+            <DeferredPanel label="Telescope controls" hidden={controlPanel !== "telescope"}>
           <TelescopePanel
             hidden={controlPanel !== "telescope"}
             sim={sim}
@@ -548,6 +518,8 @@ export default function App() {
             }}
             onZoomToField={zoomToTelescopeField}
           />
+            </DeferredPanel>
+          )}
           <button className="about-link" onClick={() => setAbout(true)}>
             ABOUT / DATA & CONTROLS ↗
           </button>
@@ -605,6 +577,8 @@ export default function App() {
             {sky ? (
               <SkyMap
                 theme={theme}
+                fontFamily={fontFamily}
+                fontRevision={fontRevision}
                 sky={sky}
                 view={view}
                 setView={setView}
@@ -718,19 +692,7 @@ export default function App() {
           {toast}
         </div>
       )}
-      {siteOpen && (
-        <LocationDialog
-          draft={draftSite}
-          setDraft={setDraftSite}
-          message={geoMessage}
-          setMessage={setGeoMessage}
-          lookupBusy={locationLookupBusy}
-          setLookupBusy={setLocationLookupBusy}
-          onLocate={locate}
-          onApply={applySite}
-          onClose={() => setSiteOpen(false)}
-        />
-      )}
+      {siteOpen && <LocationDialog workflow={location} />}
       {about && <AboutDialog fetchedAt={satelliteData?.fetchedAt} onClose={() => setAbout(false)} />}
     </div>
   );
