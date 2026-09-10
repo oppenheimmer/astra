@@ -73,7 +73,7 @@ Both run in CI on every push and pull request via `.github/workflows/test.yml`. 
 
 Regression tests cover stale geolocation/elevation responses, keyboard and dialog focus, saved fonts and canvas redraws, malformed orbital records, shared request limits, terrain deadlines, and conditional Worker responses on cached GET and HEAD paths.
 
-Dependency auditing runs weekly, on dependency pull requests and on manual dispatch through `.github/workflows/audit.yml`. It checks JavaScript runtime/development dependencies and Python runtime/test/operations dependencies against current advisory databases. CI actions are pinned to commit IDs, and Python CI installs require the committed lockfile to match the manifest. Run the same audit locally with network access:
+Dependency auditing runs weekly, on dependency pull requests and on manual dispatch through `.github/workflows/audit.yml`. It checks JavaScript runtime/development dependencies and Python runtime/test/operations dependencies against current advisory databases. CI actions use readable version tags such as `actions/checkout@v7` and `astral-sh/setup-uv@v10.0.1`. Python CI installs require the committed lockfile to match the manifest. Run the same audit locally with network access:
 
 ```sh
 npm audit
