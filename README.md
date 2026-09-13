@@ -2,6 +2,8 @@
 
 An interactive sky map and telescope-controller prototype for an Orion Optics OMC-140 on a Vixen GP mount. Inspired by the monochrome instrument layout of [Departure Mono](https://departuremono.com/).
 
+Live at **[astra.souravmishra.net](https://astra.souravmishra.net)**.
+
 - Real observing time and location, browser geolocation, manual coordinates, location presets (Greenwich, London, Paris, Delhi, Beijing, Tokyo, Sydney, San Francisco, Los Angeles, New York), ground elevation lookup, and local-time travel and playback. Location lookups can be cancelled; editing or closing the dialog discards earlier responses, and saving waits for the current lookup to finish.
 - 28,352 HYG stars plus a bundled Gaia DR3 whole-sky layer of 140,763 sources at 7.5 < G ≤ 9. Deeper Gaia fields load on demand. Planets, Moon, Sun, all 110 Messier objects, constellations, and timestamped satellite predictions are included.
 - Sun and Moon are filled disks at their apparent angular diameter, calculated from topocentric distance. Their size follows zoom and the chart projection; sidebar sizes are in arcminutes. Other planet markers remain symbolic.
