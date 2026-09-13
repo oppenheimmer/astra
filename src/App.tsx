@@ -211,12 +211,12 @@ export default function App() {
           },
     );
   }
-  function select(o: SkyObject, center = false) {
+  function select(o: SkyObject, center = false, showDetails = true) {
     setPinnedStar(o.star?.source === "Gaia DR3" ? o.star : null);
     setSelectedId(o.id);
     setQuery("");
     setSearchOpen(false);
-    setMobilePanel("object");
+    if (showDetails) setMobilePanel("object");
     if (center) {
       centreView(o, 85, 20);
       if (o.alt < 0) setToast(`${o.name} is below your horizon at this time.`);
@@ -581,7 +581,9 @@ export default function App() {
                 satelliteTrails={satelliteTrails}
                 highlights={highlights}
                 selected={selected}
-                select={select}
+                // In the Telescope tab, phones stay on the chart so a second tap can slew.
+                select={controlPanel === "telescope" ? (o) => select(o, false, false) : select}
+                onDoubleSelect={controlPanel === "telescope" ? (o) => sim.slew(o.ra, o.dec, o.id) : undefined}
                 telescope={tel}
                 aiming={aiming}
                 aim={aim}

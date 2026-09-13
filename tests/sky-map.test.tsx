@@ -86,7 +86,7 @@ function pointer(x: number, y: number, id = 1, type = "mouse") {
   return { clientX: x + 10, clientY: y + 20, pointerId: id, pointerType: type } as PointerEvent;
 }
 
-function mountPointer({ aiming = false } = {}) {
+function mountPointer({ aiming = false, onDoubleSelect }: { aiming?: boolean; onDoubleSelect?: (o: SkyObject) => void } = {}) {
   const host = document.createElement("div");
   const capture = vi.fn();
   host.setPointerCapture = capture;
@@ -100,7 +100,7 @@ function mountPointer({ aiming = false } = {}) {
     const [view, setView] = useState(initialView);
     const handlers = useSkyMapPointer({
       sky: currentSky, view, setView, selected: null, starMagnitude: 10,
-      terrain: null, telescope, aiming, select, aim,
+      terrain: null, telescope, aiming, select, aim, onDoubleSelect,
     }, {
       size: { w: 800, h: 700 }, cx: 400, cy: 350, r: 300, aspect: 1,
       getPoint: createProjector(view, 400, 350, 300), inside,
@@ -178,6 +178,51 @@ describe("Sky map pointer interactions", () => {
     act(() => f.result.current.handlers.pointerMove(pointer(400, 350)));
     act(() => f.host.dispatchEvent(new WheelEvent("wheel", { clientX: 410, clientY: 370, deltaY: -100 })));
     expect(f.result.current.handlers.hover).toBeNull();
+  });
+
+  it("reports a quick second click or tap on the same object as a double select", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const onDoubleSelect = vi.fn();
+    const f = mountPointer({ onDoubleSelect });
+    const tap = (x: number, type = "mouse") => act(() => {
+      f.result.current.handlers.pointerDown(pointer(x, 350, 1, type));
+      f.result.current.handlers.pointerUp(pointer(x, 350, 1, type));
+    });
+    tap(400);
+    expect(f.select).toHaveBeenCalledWith(object);
+    expect(onDoubleSelect).not.toHaveBeenCalled();
+    now.mockReturnValue(1300);
+    tap(410, "touch");
+    expect(onDoubleSelect).toHaveBeenCalledTimes(1);
+    expect(onDoubleSelect).toHaveBeenCalledWith(object);
+    // A third tap starts a new pair rather than slewing again.
+    now.mockReturnValue(1400);
+    tap(400);
+    expect(onDoubleSelect).toHaveBeenCalledTimes(1);
+    now.mockRestore();
+  });
+
+  it("ignores slow repeat clicks and does nothing extra without a double-select action", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const onDoubleSelect = vi.fn();
+    const f = mountPointer({ onDoubleSelect });
+    const click = () => act(() => {
+      f.result.current.handlers.pointerDown(pointer(400, 350));
+      f.result.current.handlers.pointerUp(pointer(400, 350));
+    });
+    click();
+    now.mockReturnValue(1500);
+    click();
+    expect(onDoubleSelect).not.toHaveBeenCalled();
+    const plain = mountPointer();
+    act(() => {
+      plain.result.current.handlers.pointerDown(pointer(400, 350));
+      plain.result.current.handlers.pointerUp(pointer(400, 350));
+      plain.result.current.handlers.pointerDown(pointer(400, 350));
+      plain.result.current.handlers.pointerUp(pointer(400, 350));
+    });
+    expect(plain.select).toHaveBeenCalledTimes(2);
+    now.mockRestore();
   });
 
   it("aims at the released sky direction when aiming is enabled", () => {

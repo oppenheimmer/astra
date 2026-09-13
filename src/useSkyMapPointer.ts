@@ -15,7 +15,12 @@ interface PointerOptions {
   aiming: boolean;
   aim: (az: number, alt: number) => void;
   select: (object: SkyObject) => void;
+  /** A second click or tap on the same object in quick succession; omitted where double-click has no action. */
+  onDoubleSelect?: (object: SkyObject) => void;
 }
+/** Detected from pointer releases rather than `dblclick`, which touch browsers do not send reliably. */
+const DOUBLE_TAP_MS = 400;
+const DOUBLE_TAP_DISTANCE = 24;
 interface PointerGeometry {
   size: { w: number; h: number };
   cx: number;
@@ -49,6 +54,7 @@ export function useSkyMapPointer(
     view: View;
   } | null>(null);
   const pinch = useRef(new Map<number, { x: number; y: number }>());
+  const lastTap = useRef<{ id: string; time: number; x: number; y: number } | null>(null);
   useEffect(() => setHover(null), [p.view, p.selected?.id, p.starMagnitude, p.terrain]);
   useEffect(() => {
     const node = host.current;
@@ -175,14 +181,28 @@ export function useSkyMapPointer(
     setDragging(false);
     if (!d) return;
     if (p.aiming || (d.field && d.moved)) {
+      lastTap.current = null;
       const h = unproject(pos.x, pos.y, p.view, cx, cy, r, false, aspect);
       if (h) p.aim(h.az, h.alt);
     } else if (!d.moved) {
       const object =
         (d.objectId ? p.sky.byId.get(d.objectId) : null) ??
         hitObject(pos, e.pointerType === "touch" ? 24 : 16)?.o;
-      if (object) p.select(object);
-    }
+      if (object) {
+        p.select(object);
+        const now = performance.now(),
+          last = lastTap.current;
+        const repeated =
+          !!last &&
+          last.id === object.id &&
+          now - last.time < DOUBLE_TAP_MS &&
+          Math.hypot(pos.x - last.x, pos.y - last.y) < DOUBLE_TAP_DISTANCE;
+        if (repeated && p.onDoubleSelect) {
+          lastTap.current = null;
+          p.onDoubleSelect(object);
+        } else lastTap.current = { id: object.id, time: now, ...pos };
+      } else lastTap.current = null;
+    } else lastTap.current = null;
     drag.current = null;
   };
   const pointerCancel = () => {

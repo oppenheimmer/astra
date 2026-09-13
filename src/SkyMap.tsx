@@ -36,6 +36,7 @@ interface Props {
   highlights: SkyObject[];
   selected: SkyObject | null;
   select: (o: SkyObject) => void;
+  onDoubleSelect?: (o: SkyObject) => void;
   telescope: Telescope;
   aiming: boolean;
   aim: (az: number, alt: number) => void;
