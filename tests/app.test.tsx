@@ -48,7 +48,7 @@ function offlineFetch(url: string) {
   return Promise.resolve(respond(503, { detail: OFFLINE }));
 }
 
-const noop = () => {};
+const noop = () => { };
 class ResizeObserverStub { observe = noop; unobserve = noop; disconnect = noop; }
 class Path2DStub { addPath = noop; arc = noop; rect = noop; moveTo = noop; lineTo = noop; closePath = noop; }
 beforeAll(() => {
@@ -59,9 +59,9 @@ beforeAll(() => {
       get: (target, key) =>
         key in target ? target[key]
           : key === "measureText" ? () => ({ width: 8 })
-          : key === "isPointInPath" ? () => false
-          : key === "createLinearGradient" || key === "createRadialGradient" ? () => ({ addColorStop: noop })
-          : noop,
+            : key === "isPointInPath" ? () => false
+              : key === "createLinearGradient" || key === "createRadialGradient" ? () => ({ addColorStop: noop })
+                : noop,
       set: (target, key, value) => ((target[key] = value), true),
     });
   HTMLCanvasElement.prototype.getContext = (() => context()) as typeof HTMLCanvasElement.prototype.getContext;
@@ -137,7 +137,7 @@ describe("Starmap desk", () => {
   it("mounts from the bundled catalogue with the preview site and a bright star selected", async () => {
     await mount();
     expect(screen.getByRole("heading", { level: 1 }).textContent).toBe("STARMAP");
-    expect(screen.getByText("OBSERVER / PREVIEW LOCATION")).toBeTruthy();
+    expect(screen.getByText("LOCATION")).toBeTruthy();
     expect(screen.getByText("Set your location to see your own sky.")).toBeTruthy();
     expect(heading()).toBeTruthy();
     expect(screen.getByText("↑ ABOVE HORIZON")).toBeTruthy();
@@ -187,14 +187,14 @@ describe("Starmap desk", () => {
     await mount();
     fireEvent.click(screen.getByRole("button", { name: /EDIT/ }));
     const dialog = screen.getByRole("dialog");
-    fireEvent.change(within(dialog).getByLabelText("Choose a location"), { target: { value: "1" } });
-    expect((within(dialog).getByLabelText("Latitude") as HTMLInputElement).value).toBe("46.948");
+    fireEvent.change(within(dialog).getByLabelText("Choose a location"), { target: { value: "2" } });
+    expect((within(dialog).getByLabelText("Latitude") as HTMLInputElement).value).toBe("48.8566");
     fireEvent.click(within(dialog).getByRole("button", { name: /UPDATE SKY/ }));
     await waitFor(() => expect(screen.queryByRole("dialog")).toBeNull());
-    expect(screen.getByText("Sky updated for Bern.")).toBeTruthy();
-    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.site)!)).toMatchObject({ name: "Bern", lat: 46.948, preview: false });
-    expect(screen.getByText("OBSERVER / EARTH")).toBeTruthy();
-    expect(screen.getByLabelText("Observing date and time in Europe/Zurich")).toBeTruthy();
+    expect(screen.getByText("Sky updated for Paris.")).toBeTruthy();
+    expect(JSON.parse(localStorage.getItem(STORAGE_KEYS.site)!)).toMatchObject({ name: "Paris", lat: 48.8566, preview: false });
+    expect(screen.getByText("LOCATION")).toBeTruthy();
+    expect(screen.getByLabelText("Observing date and time in Europe/Paris")).toBeTruthy();
   });
 
   it("explains when the browser cannot locate the observer", async () => {

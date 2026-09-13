@@ -17,7 +17,7 @@ export const STORAGE_KEYS = {
   satelliteTrails: "sidereal-satellite-trails",
   font: "sidereal-monospace-font",
 } as const;
-export const DEFAULT_MAGNITUDE = 6.5;
+export const DEFAULT_MAGNITUDE = 3;
 
 export function readStored(key: string): string | null {
   try {

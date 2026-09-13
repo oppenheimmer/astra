@@ -1,14 +1,13 @@
 // @vitest-environment jsdom
 import { act, cleanup, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { fetchGroundElevation, searchLocations, type GroundElevation } from "../src/api";
+import { fetchGroundElevation, type GroundElevation } from "../src/api";
 import { STORAGE_KEYS } from "../src/preferences";
 import { presets } from "../src/sites";
 import { useLocationWorkflow } from "../src/useLocationWorkflow";
 
-vi.mock("../src/api", () => ({ fetchGroundElevation: vi.fn(), searchLocations: vi.fn() }));
+vi.mock("../src/api", () => ({ fetchGroundElevation: vi.fn() }));
 const elevation = vi.mocked(fetchGroundElevation);
-const search = vi.mocked(searchLocations);
 function deferred<T>() {
   let resolve!: (value: T) => void;
   const promise = new Promise<T>((done) => { resolve = done; });
@@ -36,8 +35,8 @@ describe("Location workflow", () => {
     act(() => result.current.apply());
     await act(async () => { onPosition(position); });
     expect(elevation).not.toHaveBeenCalled();
-    expect(result.current.site.name).toBe("Bern");
-    expect(savedSite().name).toBe("Bern");
+    expect(result.current.site.name).toBe("London");
+    expect(savedSite().name).toBe("London");
     expect(notify).toHaveBeenCalledTimes(1);
   });
 
@@ -47,13 +46,13 @@ describe("Location workflow", () => {
     const { result } = renderHook(() => useLocationWorkflow(vi.fn()));
     act(() => result.current.locate());
     act(() => { onPosition(position); });
-    const signal = elevation.mock.calls[0][2]!;
+    const signal = elevation.mock.calls[0][1]!;
     act(() => result.current.edit(presets[1]));
     act(() => result.current.apply());
     expect(signal.aborted).toBe(true);
     await act(async () => pending.resolve({ elevation: 1234, source: "test" }));
-    expect(result.current.site).toMatchObject({ name: "Bern", elevation: 540 });
-    expect(savedSite()).toMatchObject({ name: "Bern", elevation: 540 });
+    expect(result.current.site).toMatchObject({ name: "London", elevation: 25 });
+    expect(savedSite()).toMatchObject({ name: "London", elevation: 25 });
   });
 
   it("discards browser callbacks when the dialog closes and reopens", async () => {
@@ -98,39 +97,11 @@ describe("Location workflow", () => {
     expect(result.current.busy).toBe(false);
   });
 
-  it("rejects old address matches without clearing a newer request's busy state", async () => {
-    const old = deferred<Awaited<ReturnType<typeof searchLocations>>>();
-    const current = deferred<Awaited<ReturnType<typeof searchLocations>>>();
-    const address = { name: "Bundesplatz 3 3011 Bern", lat: 46.948, lon: 7.447, easting: 2600000, northing: 1200000 };
-    search.mockReturnValueOnce(old.promise).mockReturnValueOnce(current.promise);
-    const { result } = renderHook(() => useLocationWorkflow(vi.fn()));
-    act(() => result.current.changeQuery("Zurich"));
-    act(() => { void result.current.search(); });
-    const signal = search.mock.calls[0][1]!;
-    act(() => result.current.changeQuery("Bern"));
-    act(() => { void result.current.search(); });
-    expect(signal.aborted).toBe(true);
-    await act(async () => old.resolve([address]));
-    expect(result.current.results).toEqual([]);
-    expect(result.current.busy).toBe(true);
-    await act(async () => current.resolve([address]));
-    expect(result.current.results).toEqual([address]);
-    expect(result.current.busy).toBe(false);
-
-    const pending = deferred<GroundElevation>();
-    elevation.mockReturnValueOnce(pending.promise);
-    act(() => { void result.current.lookupElevation(address); });
-    act(() => result.current.edit(presets[2]));
-    await act(async () => pending.resolve({ elevation: 1234, source: "old address" }));
-    expect(result.current.draft).toEqual(presets[2]);
-    expect(result.current.message).toBe("");
-  });
-
   it("cancels the active fetch on unmount", () => {
     elevation.mockReturnValueOnce(new Promise(() => {}));
     const { result, unmount } = renderHook(() => useLocationWorkflow(vi.fn()));
     act(() => { void result.current.lookupElevation(); });
-    const signal = elevation.mock.calls[0][2]!;
+    const signal = elevation.mock.calls[0][1]!;
     unmount();
     expect(signal.aborted).toBe(true);
   });

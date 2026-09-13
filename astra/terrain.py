@@ -201,14 +201,6 @@ def horizon(lat, lon, height=1.5):
             'source': 'Mapzen Terrain Tiles', 'approximate': True}
 
 
-def elevation(lat, lon, easting=None, northing=None):
-    if easting is not None and northing is not None:
-        response = requests.get('https://api3.geo.admin.ch/rest/services/height',
-            params={'easting': easting, 'northing': northing, 'sr': 2056}, headers=HEADERS, timeout=12)
-        response.raise_for_status()
-        result = float(response.json()['height'])
-        if not math.isfinite(result):
-            raise ValueError('No elevation at this address')
-        return {'elevation': round(result), 'source': 'swisstopo'}
+def elevation(lat, lon):
     result = float(elevations(np.array([lat]), np.array([lon]), 12)[0])
     return {'elevation': round(result), 'source': 'Mapzen Terrain Tiles'}

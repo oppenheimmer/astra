@@ -2,15 +2,15 @@ import type { Site } from "./types";
 
 export const presets: Site[] = [
   { name: "Greenwich", lat: 51.4779, lon: -0.0015, elevation: 46 },
-  { name: "Bern", lat: 46.948, lon: 7.4474, elevation: 540 },
-  { name: "Zürich", lat: 47.3769, lon: 8.5417, elevation: 408 },
   { name: "London", lat: 51.5074, lon: -0.1278, elevation: 25 },
-  { name: "New York", lat: 40.7128, lon: -74.006, elevation: 10 },
-  { name: "San Francisco", lat: 37.7749, lon: -122.4194, elevation: 16 },
+  { name: "Paris", lat: 48.8566, lon: 2.3522, elevation: 35 },
+  { name: "Delhi", lat: 28.6139, lon: 77.209, elevation: 216 },
+  { name: "Beijing", lat: 39.9042, lon: 116.4074, elevation: 44 },
   { name: "Tokyo", lat: 35.6762, lon: 139.6503, elevation: 40 },
   { name: "Sydney", lat: -33.8688, lon: 151.2093, elevation: 58 },
-  { name: "Cape Town", lat: -33.9249, lon: 18.4241, elevation: 25 },
-  { name: "Atacama", lat: -23.8634, lon: -69.1328, elevation: 2400 },
+  { name: "San Francisco", lat: 37.7749, lon: -122.4194, elevation: 16 },
+  { name: "Los Angeles", lat: 34.0522, lon: -118.2437, elevation: 93 },
+  { name: "New York", lat: 40.7128, lon: -74.006, elevation: 10 },
 ];
 export const DEFAULT_HEIGHT = 1.5;
 
@@ -58,10 +58,4 @@ export const terrainKey = (site: Site) =>
 export function terrainParams(key: string) {
   const [lat, lon, height] = key.split(",");
   return { lat, lon, height };
-}
-
-/** Swiss address search returns one label: street, then postcode and locality. */
-export function locationLines(name: string) {
-  const address = name.trim().match(/^(.+?)\s*,?\s+(\d{4}\s+.+)$/);
-  return address ? [address[1], address[2]] : [name];
 }

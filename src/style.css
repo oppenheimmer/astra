@@ -12,16 +12,16 @@
   font-synthesis: none;
   font-weight: 400;
   font-size: 11px;
-  --paper: #eeede8;
+  --paper: #ffffff;
   --ink: #414141;
-  --muted: #727272;
+  --muted: #595959;
   --rule: #c2c2c2;
   --faint: #dadada;
   --dark: #343434;
   --hover: #dfdfdf;
   --border: #8b8b83;
-  --dim: #898982;
-  --muted-strong: #60605a;
+  --dim: #6a6a65;
+  --muted-strong: #4d4d49;
   --button-hover-ink: #54544d;
   --grid: #cdcdc6;
   --soft-shadow: #35353517;
@@ -302,9 +302,6 @@ input[type="range"]::-moz-range-thumb {
   min-width: 0;
   line-height: 1.45;
   overflow-wrap: anywhere;
-}
-.location-address > span {
-  display: block;
 }
 .location-edit {
   flex-shrink: 0;
@@ -1390,7 +1387,7 @@ input[type="range"]::-moz-range-thumb {
     padding: 6px;
   }
   .daylight-note {
-    font-size: 6px;
+    font-size: 8px;
     bottom: 0;
     left: 10px;
     right: 10px;
@@ -1442,7 +1439,7 @@ input[type="range"]::-moz-range-thumb {
     padding: 5px;
   }
   .bottom-line {
-    font-size: 6px;
+    font-size: 8px;
     gap: 10px;
   }
   .bottom-line span:last-child {

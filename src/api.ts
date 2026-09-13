@@ -3,13 +3,6 @@ import { validTerrain } from "./terrain";
 import type { StarField } from "./star-catalogue";
 import { parseSatelliteData } from "./satellite-data";
 
-export interface Address {
-  name: string;
-  lat: number;
-  lon: number;
-  easting: number;
-  northing: number;
-}
 export interface GroundElevation {
   elevation: number;
   source: string;
@@ -109,24 +102,12 @@ export async function fetchHorizon(
 
 export async function fetchGroundElevation(
   site: Pick<Site, "lat" | "lon">,
-  address?: Pick<Address, "easting" | "northing">,
   signal?: AbortSignal,
 ): Promise<GroundElevation> {
   const params: Params = { lat: site.lat, lon: site.lon };
-  if (address) Object.assign(params, { easting: address.easting, northing: address.northing });
   const result = await getJSON<Partial<GroundElevation> | null>("/api/elevation", params, ELEVATION_FALLBACK, { signal });
   if (!result || !Number.isFinite(result.elevation)) throw Error(ELEVATION_FALLBACK);
   return { elevation: result.elevation as number, source: String(result.source ?? "") };
-}
-
-export async function searchLocations(query: string, signal?: AbortSignal): Promise<Address[]> {
-  const data = await getJSON<{ results?: Address[] } | null>(
-    "/api/locations/search",
-    { q: query.trim() },
-    "Address search unavailable.",
-    { signal },
-  );
-  return Array.isArray(data?.results) ? data.results : [];
 }
 
 export function validDeepStars(data: unknown): data is DeepStars {

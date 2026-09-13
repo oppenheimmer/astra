@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState, type SetStateAction } from "react";
-import { fetchGroundElevation, searchLocations, type Address } from "./api";
+import { fetchGroundElevation } from "./api";
 import { readSite, saveSite } from "./preferences";
 import { observerHeight, previewSite, siteProblem } from "./sites";
 import type { Site } from "./types";
 
-type Lookup = "geolocation" | "search" | "elevation";
+type Lookup = "geolocation" | "elevation";
 
 /** One current location request: every edit, new lookup or close discards older work. */
 export function useLocationWorkflow(notify: (message: string) => void) {
@@ -12,8 +12,6 @@ export function useLocationWorkflow(notify: (message: string) => void) {
   const [open, setOpen] = useState(false);
   const [draft, setDraft] = useState(site);
   const [message, setMessage] = useState("");
-  const [query, setQuery] = useState("");
-  const [results, setResults] = useState<Address[]>([]);
   const [pending, setPending] = useState<Lookup | null>(null);
   const request = useRef(0);
   const controller = useRef<AbortController | null>(null);
@@ -25,7 +23,6 @@ export function useLocationWorkflow(notify: (message: string) => void) {
     controller.current = null;
     pendingRef.current = null;
     setPending(null);
-    setResults([]);
     setMessage("");
   }
   function begin(kind: Lookup) {
@@ -58,7 +55,6 @@ export function useLocationWorkflow(notify: (message: string) => void) {
   function show() {
     cancel();
     setDraft(site);
-    setQuery("");
     setOpen(true);
   }
   function commit(next: Site, warning = "") {
@@ -78,33 +74,11 @@ export function useLocationWorkflow(notify: (message: string) => void) {
   function apply(next = draft) {
     if (!pendingRef.current) commit(next);
   }
-  function changeQuery(value: string) {
-    cancel();
-    setQuery(value);
-  }
-  async function search() {
-    if (query.trim().length < 3) return;
-    const { id, signal } = begin("search");
-    try {
-      const matches = await searchLocations(query, signal);
-      if (id !== request.current) return;
-      setResults(matches);
-      if (!matches.length) setMessage("No Swiss address found. Try a street, house number and town.");
-    } catch (error) {
-      if (id === request.current) setMessage(error instanceof Error ? error.message : "Search unavailable.");
-    } finally {
-      finish(id);
-    }
-  }
-  async function lookupElevation(address?: Address) {
-    const next = address
-      ? { ...draft, name: address.name, lat: address.lat, lon: address.lon, elevation: 0, preview: false }
-      : draft;
+  async function lookupElevation() {
     const { id, signal } = begin("elevation");
-    if (address) setDraft(next);
     setMessage("Looking up ground elevation…");
     try {
-      const value = await fetchGroundElevation(next, address, signal);
+      const value = await fetchGroundElevation(draft, signal);
       if (id !== request.current) return;
       setDraft((current) => ({ ...current, elevation: value.elevation }));
       setMessage(`Ground elevation: ${value.elevation} m · ${value.source}`);
@@ -133,7 +107,7 @@ export function useLocationWorkflow(notify: (message: string) => void) {
         let warning = "";
         setMessage("Looking up ground elevation…");
         try {
-          next.elevation = (await fetchGroundElevation(next, undefined, signal)).elevation;
+          next.elevation = (await fetchGroundElevation(next, signal)).elevation;
         } catch {
           warning = "Ground elevation unavailable. You can set it in location settings.";
         }
@@ -151,8 +125,8 @@ export function useLocationWorkflow(notify: (message: string) => void) {
   }
 
   return {
-    site, open, draft, message, query, results, pending, busy: pending !== null,
-    edit, close, show, apply, changeQuery, search, lookupElevation, locate, cancel,
+    site, open, draft, message, pending, busy: pending !== null,
+    edit, close, show, apply, lookupElevation, locate, cancel,
   };
 }
 

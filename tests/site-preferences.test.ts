@@ -14,7 +14,6 @@ import {
 } from "../src/preferences";
 import {
   isSite,
-  locationLines,
   observerHeight,
   presets,
   previewSite,
@@ -45,19 +44,19 @@ describe("Saved observing site", () => {
     expect(readSite()).toBeNull();
     storage.setItem(STORAGE_KEYS.site, JSON.stringify({ name: "Nowhere", lat: 91, lon: 0, elevation: 0 }));
     expect(readSite()).toBeNull();
-    const bern = { ...presets[1], preview: false, heightAboveGround: 12 };
-    saveSite(bern);
-    expect(readSite()).toEqual(bern);
+    const london = { ...presets[1], preview: false, heightAboveGround: 12 };
+    saveSite(london);
+    expect(readSite()).toEqual(london);
     expect(previewSite()).toEqual({ ...presets[0], preview: true });
     expect(isSite({ name: "x", lat: 0, lon: 0 })).toBe(false);
   });
   it("explains unusable coordinates, elevations and heights", () => {
-    const bern = presets[1];
-    expect(siteProblem(bern)).toBeNull();
-    expect(siteProblem({ ...bern, lat: 95 })).toMatch(/Check latitude/);
-    expect(siteProblem({ ...bern, elevation: 9500 })).toMatch(/Check latitude/);
-    expect(siteProblem({ ...bern, heightAboveGround: -1 })).toMatch(/Check latitude/);
-    expect(siteProblem({ ...bern, heightAboveGround: 500 })).toBeNull();
+    const london = presets[1];
+    expect(siteProblem(london)).toBeNull();
+    expect(siteProblem({ ...london, lat: 95 })).toMatch(/Check latitude/);
+    expect(siteProblem({ ...london, elevation: 9500 })).toMatch(/Check latitude/);
+    expect(siteProblem({ ...london, heightAboveGround: -1 })).toMatch(/Check latitude/);
+    expect(siteProblem({ ...london, heightAboveGround: 500 })).toBeNull();
   });
   it("keys terrain requests on rounded coordinates and the default observer height", () => {
     const key = terrainKey({ name: "x", lat: 46.9480001, lon: 7.44740004, elevation: 540 });
@@ -66,10 +65,11 @@ describe("Saved observing site", () => {
     expect(observerHeight({ heightAboveGround: 12.34 })).toBe(12.34);
     expect(observerHeight({})).toBe(1.5);
   });
-  it("splits Swiss address labels into street and locality lines", () => {
-    expect(locationLines("Bundesplatz 3 3011 Bern")).toEqual(["Bundesplatz 3", "3011 Bern"]);
-    expect(locationLines("Bundesplatz 3, 3011 Bern")).toEqual(["Bundesplatz 3", "3011 Bern"]);
-    expect(locationLines("Greenwich")).toEqual(["Greenwich"]);
+  it("lists the default quick locations in order, with Greenwich as the preview", () => {
+    expect(presets.map((preset) => preset.name)).toEqual([
+      "Greenwich", "London", "Paris", "Delhi", "Beijing", "Tokyo", "Sydney", "San Francisco", "Los Angeles", "New York",
+    ]);
+    expect(presets.every((preset) => siteProblem(preset) === null)).toBe(true);
   });
 });
 

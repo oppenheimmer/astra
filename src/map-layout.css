@@ -288,7 +288,7 @@
   }
   .has-telescope .map-caption {
     bottom: 54px;
-    font-size: 7px;
+    font-size: 8px;
   }
   .has-telescope .zoom-controls {
     bottom: 75px;
@@ -364,7 +364,7 @@
     gap: 5px;
   }
   .map-caption {
-    font-size: 7px;
+    font-size: 8px;
   }
   .scope-strip {
     flex-direction: column;
@@ -397,7 +397,7 @@
   }
   .has-telescope .daylight-note {
     bottom: 76px;
-    font-size: 6px;
+    font-size: 8px;
   }
   .time-deck {
     height: 80px;
@@ -519,7 +519,7 @@
   gap: 5px;
 }
 .terrain-controls button {
-  font-size: 7px;
+  font-size: 8px;
   min-height: 21px;
   padding: 4px 6px;
   background: var(--paper);
@@ -532,7 +532,7 @@
   right: 0;
   top: 26px;
   width: 190px;
-  font-size: 7px;
+  font-size: 8px;
   text-align: right;
   color: var(--muted);
   background: var(--paper);
@@ -541,37 +541,6 @@
 .personal-stage .map-readout {
   max-width: calc(100% - 112px);
   flex-wrap: wrap;
-}
-.address-lookup {
-  margin: 20px 0;
-}
-.address-search-row {
-  display: flex;
-  gap: 8px;
-  margin-top: 7px;
-}
-.address-search-row input {
-  flex: 1;
-  min-width: 0;
-  margin-top: 0;
-}
-.address-search-row button {
-  flex: none;
-  font-size: 9px;
-}
-.address-results {
-  border-bottom: 1px solid var(--rule);
-}
-.address-results button {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  width: 100%;
-  text-align: left;
-  border: 0;
-  border-top: 1px solid var(--rule);
-  padding: 10px 4px;
-  font-size: 10px;
 }
 .lookup-elevation {
   margin: -4px 0 16px;
@@ -590,7 +559,7 @@
 @media (max-width: 760px) {
   .personal-stage .map-readout {
     gap: 4px 8px;
-    font-size: 7px;
+    font-size: 8px;
   }
   .terrain-controls {
     top: 34px;
@@ -688,7 +657,7 @@
 .blueprint-dial .motor-needle { stroke: var(--ink); stroke-width: 1.2; }
 .blueprint-dial .motor-hub { fill: var(--paper); stroke: var(--ink); }
 .blueprint-dial .axis-value { fill: var(--ink); font-size: 12px; }
-.telescope-blueprint figcaption { display: flex; justify-content: space-between; font-size: 7px; color: var(--muted); margin-top: 3px; letter-spacing: .04em; }
+.telescope-blueprint figcaption { display: flex; justify-content: space-between; font-size: 8px; color: var(--muted); margin-top: 3px; letter-spacing: .04em; }
 .motor-buttons button { font-size: 9px; padding: 6px 3px; }
 .motor-buttons button[aria-pressed="true"] { background: var(--faint); border-color: var(--border); }
 .telescope-target { margin: 20px 0 9px; }
@@ -700,20 +669,20 @@
 .telescope-readout { border-block: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 9px 0; margin: 0 0 15px; font-size: 9px; color: var(--muted); }
 .telescope-readout span:last-child { width: 100%; font-size: 8px; }
 :root[data-theme="dark"] {
-  --paper: #141513;
-  --ink: #e1e3da;
-  --muted: #aeb2a6;
-  --rule: #41473b;
-  --faint: #292d24;
-  --dark: #ecefe5;
-  --hover: #2c3027;
-  --border: #666e5e;
-  --dim: #93998b;
-  --muted-strong: #c0c5b9;
-  --button-hover-ink: #f0f2e9;
-  --grid: #383e32;
-  --soft-shadow: #00000066;
-  --backdrop: #0d100ddd;
+  --paper: #22272e;
+  --ink: #d8e1ea;
+  --muted: #adbac7;
+  --rule: #444c56;
+  --faint: #373e47;
+  --dark: #cdd9e5;
+  --hover: #2d333b;
+  --border: #636e7b;
+  --dim: #929fad;
+  --muted-strong: #c0cad5;
+  --button-hover-ink: #adbac7;
+  --grid: #3d444d;
+  --soft-shadow: #1c212899;
+  --backdrop: #1c2128cc;
   color-scheme: dark;
 }
 .masthead {

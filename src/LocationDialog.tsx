@@ -1,9 +1,8 @@
 import { timeZoneAt } from "./local-time";
-import LocationSearch from "./LocationSearch";
 import { observerHeight, presets } from "./sites";
 import type { LocationWorkflow } from "./useLocationWorkflow";
 
-/** Choose the observing site: browser location, Swiss address, a preset city, or typed coordinates. */
+/** Choose the observing site: browser location, a preset city, or typed coordinates. */
 export default function LocationDialog({ workflow: p }: { workflow: LocationWorkflow }) {
   const { draft, edit: setDraft } = p;
   return (
@@ -21,7 +20,7 @@ export default function LocationDialog({ workflow: p }: { workflow: LocationWork
             ×
           </button>
         </div>
-        <p>Choose an address, a place or your browser’s location. The clock follows the time zone here.</p>
+        <p>Choose a city, enter coordinates or use your browser’s location. The clock follows the time zone here.</p>
         <button className="primary" onClick={p.locate}>
           ◎ USE MY CURRENT LOCATION
         </button>
@@ -31,7 +30,6 @@ export default function LocationDialog({ workflow: p }: { workflow: LocationWork
           </p>
         )}
         {p.busy && <button type="button" onClick={p.cancel}>CANCEL LOOKUP</button>}
-        <LocationSearch workflow={p} />
         <label>
           QUICK LOCATION
           <select

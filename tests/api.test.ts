@@ -10,7 +10,6 @@ import {
   fetchHorizon,
   getJSON,
   fetchSatellites,
-  searchLocations,
   validDeepStars,
   validSatelliteData,
 } from "../src/api";
@@ -71,26 +70,16 @@ describe("API client", () => {
     await expect(fetchHorizon(params)).resolves.toEqual(profile);
     expect(fetch.mock.calls[0][0]).toBe("/api/horizon?lat=46.94800&lon=7.44740&height=1.5");
   });
-  it("requires a finite ground elevation and forwards Swiss grid coordinates", async () => {
-    const fetch = mockFetch(respond(200, { elevation: 540, source: "swisstopo" }));
-    await expect(
-      fetchGroundElevation({ lat: 46.9, lon: 7.4 }, { easting: 2600000, northing: 1199000 }),
-    ).resolves.toEqual({ elevation: 540, source: "swisstopo" });
-    expect(fetch.mock.calls[0][0]).toBe("/api/elevation?lat=46.9&lon=7.4&easting=2600000&northing=1199000");
+  it("requires a finite ground elevation", async () => {
+    const fetch = mockFetch(respond(200, { elevation: 540, source: "test" }));
+    await expect(fetchGroundElevation({ lat: 46.9, lon: 7.4 })).resolves.toEqual({ elevation: 540, source: "test" });
+    expect(fetch.mock.calls[0][0]).toBe("/api/elevation?lat=46.9&lon=7.4");
     mockFetch(respond(200, { elevation: null }));
     await expect(fetchGroundElevation({ lat: 46.9, lon: 7.4 })).rejects.toThrow(
       "Elevation lookup is unavailable. Enter it manually.",
     );
     mockFetch(respond(503, { detail: "Elevation lookup is unavailable. You can enter it manually." }));
     await expect(fetchGroundElevation({ lat: 46.9, lon: 7.4 })).rejects.toThrow("You can enter it manually.");
-  });
-  it("returns an empty address list for malformed search results", async () => {
-    mockFetch(respond(200, {}));
-    await expect(searchLocations("  Bundesplatz ")).resolves.toEqual([]);
-    const address = { name: "Bundesplatz 3 3011 Bern", lat: 1, lon: 2, easting: 3, northing: 4 };
-    const fetch = mockFetch(respond(200, { results: [address] }));
-    await expect(searchLocations("  Bundesplatz ")).resolves.toEqual([address]);
-    expect(fetch.mock.calls[0][0]).toBe("/api/locations/search?q=Bundesplatz");
   });
   it("validates faint-star catalogues before they reach the chart", async () => {
     const star = { id: "gaia1", ra: 1, dec: 2, mag: 12 };

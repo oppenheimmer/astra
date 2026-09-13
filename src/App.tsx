@@ -22,7 +22,7 @@ import {
   saveStarMagnitude,
   saveTheme,
 } from "./preferences";
-import { locationLines, observerHeight } from "./sites";
+import { observerHeight } from "./sites";
 import { deepFieldLimit, DEEP_MAGNITUDE, OVERVIEW_MAGNITUDE, mergeStars } from "./star-catalogue";
 import { horizonAltitude } from "./terrain";
 import { LayerSymbol, layerLabels, SectionTitle, signature, type LayerKey } from "./ui";
@@ -63,7 +63,7 @@ export default function App() {
     document.documentElement.dataset.theme = theme;
     document
       .querySelector('meta[name="theme-color"]')
-      ?.setAttribute("content", theme === "dark" ? "#141513" : "#eeede8");
+      ?.setAttribute("content", theme === "dark" ? "#22272e" : "#ffffff");
     saveTheme(theme);
   }, [theme]);
 
@@ -289,7 +289,7 @@ export default function App() {
           <h1>STARMAP</h1>
         </div>
         <button className="location-top" onClick={location.show}>
-          <span className="eyebrow">OBSERVER / {site.preview ? "PREVIEW LOCATION" : "EARTH"}</span>
+          <span className="eyebrow">LOCATION</span>
           <span>{site.name.toUpperCase()} ↗</span>
           <small>
             {Math.abs(site.lat).toFixed(3)}°{hemisphere(site.lat, "N", "S")} &nbsp;{" "}
@@ -336,9 +336,7 @@ export default function App() {
             <section>
               <SectionTitle n="01">OBSERVATION</SectionTitle>
               <button className="location-card" onClick={location.show}>
-                <span className="location-address">
-                  {locationLines(site.name).map((line, i) => <span key={i}>{line}</span>)}
-                </span>
+                <span className="location-address">{site.name}</span>
                 <span className="location-edit">EDIT ↗</span>
               </button>
               <p className="small-note">
@@ -423,9 +421,6 @@ export default function App() {
                   <span>BRIGHTER</span>
                   <span>FAINTER</span>
                 </div>
-                <p className="small-note">
-                  Higher values show fainter stars. Gaia covers the whole sky to G 9, with deeper fields to G 14 as you zoom.
-                </p>
                 {layers.star && starMagnitude > 7.5 && (
                   <div className="deep-star-status small-note" role="status">
                     {overview.error ? (

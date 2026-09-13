@@ -1,7 +1,5 @@
 """FastAPI application: the JSON API under /api, plus the built frontend when it is present."""
 import asyncio
-import html
-import re
 from pathlib import Path
 
 import requests
@@ -11,25 +9,14 @@ from fastapi.staticfiles import StaticFiles
 
 from . import DATA, DIST, deep_stars, satellites, terrain
 from .coalesce import Busy, Coalescer
-from .upstream import HEADERS
 
 OVERVIEW = DATA / 'gaia-overview.json.gz'
 GZIP_MAGIC = b'\x1f\x8b'
-SEARCH_URL = 'https://api3.geo.admin.ch/rest/services/ech/SearchServer'
 TERRAIN_WAIT_SECONDS = 45
 UPSTREAM_ERRORS = (requests.RequestException, ValueError, OSError, KeyError, TypeError)
 
 terrain_work = Coalescer(workers=2, backlog=8)
 star_work = Coalescer(workers=2, backlog=8)
-
-
-def strip_tags(label: str) -> str:
-    return html.unescape(re.sub('<[^>]*>', '', label))
-
-
-def search_results(rows: list[dict]) -> list[dict]:
-    return [{'name': strip_tags(row['attrs']['label']), 'lat': row['attrs']['lat'], 'lon': row['attrs']['lon'],
-             'easting': row['attrs']['y'], 'northing': row['attrs']['x']} for row in rows]
 
 
 def bundled_overview() -> Path:
@@ -45,7 +32,6 @@ def bundled_overview() -> Path:
 
 def create_app(static_dir: Path | None = DIST) -> FastAPI:
     app = FastAPI(docs_url=None, redoc_url=None)
-    search_work = Coalescer(workers=2, backlog=8, cache_size=256, ttl=300)
     elevation_work = Coalescer(workers=2, backlog=8, cache_size=256, ttl=86400)
 
     @app.get('/api/health')
@@ -78,37 +64,14 @@ def create_app(static_dir: Path | None = DIST) -> FastAPI:
         return JSONResponse(result, headers={'Cache-Control': 'private, max-age=86400'})
 
     @app.get('/api/elevation')
-    async def elevation(lat: float = Query(ge=-85, le=85), lon: float = Query(ge=-180, le=180),
-                  easting: float | None = Query(default=None, ge=2400000, le=2900000),
-                  northing: float | None = Query(default=None, ge=1000000, le=1400000)):
-        if (easting is None) != (northing is None):
-            raise HTTPException(422, 'Supply both easting and northing for an address elevation.')
-        key = (round(lat, 5), round(lon, 5),
-               round(easting, 1) if easting is not None else None,
-               round(northing, 1) if northing is not None else None)
+    async def elevation(lat: float = Query(ge=-85, le=85), lon: float = Query(ge=-180, le=180)):
+        key = (round(lat, 5), round(lon, 5))
         try:
             return await elevation_work.run(key, lambda: terrain.elevation(*key))
         except Busy:
             raise HTTPException(503, 'Elevation lookup is busy. Try again shortly or enter it manually.')
         except UPSTREAM_ERRORS:
             raise HTTPException(503, 'Elevation lookup is unavailable. You can enter it manually.')
-
-    @app.get('/api/locations/search')
-    async def search_locations(q: str = Query(min_length=3, max_length=160)):
-        query = ' '.join(q.split()).casefold()
-        if len(query) < 3:
-            raise HTTPException(422, 'Enter at least three characters to search.')
-        def lookup():
-            response = requests.get(SEARCH_URL, headers=HEADERS, timeout=12, params={
-                'searchText': query, 'type': 'locations', 'origins': 'address,gazetteer', 'sr': 2056, 'limit': 6})
-            response.raise_for_status()
-            return {'results': search_results(response.json()['results'])}
-        try:
-            return await search_work.run(query, lookup)
-        except Busy:
-            raise HTTPException(503, 'Address search is busy. Try again shortly.')
-        except (requests.RequestException, ValueError, KeyError, TypeError):
-            raise HTTPException(503, 'Address search is unavailable. Use coordinates or your browser location.')
 
     @app.get('/api/stars/overview')
     async def star_overview():

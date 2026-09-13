@@ -105,11 +105,7 @@ export default function AboutDialog({ fetchedAt, onClose }: Props) {
         </p>
         <p>
           <Link href="https://registry.opendata.aws/terrain-tiles/">Mapzen Terrain Tiles</Link> ·{" "}
-          <Link href="/data/TERRAIN-ATTRIBUTION.md">Terrain data credits</Link> ·{" "}
-          <Link href="https://www.swisstopo.admin.ch/en/geoservices-with-swisstopo-geodata">
-            Swiss address and elevation services: swisstopo
-          </Link>
-          .
+          <Link href="/data/TERRAIN-ATTRIBUTION.md">Terrain data credits</Link>.
         </p>
         <h3>TYPE / DESIGN</h3>
         <p>
@@ -119,7 +115,7 @@ export default function AboutDialog({ fetchedAt, onClose }: Props) {
         <p>
           Observation times use the selected location’s time zone, including daylight-saving
           changes. Your saved location stays in this browser. Coordinates are sent to this server to
-          calculate terrain; Swiss address searches and height queries use swisstopo. No tracking or
+          calculate terrain and ground elevation. No tracking or
           analytics. Faint-star lookups send the sky field’s celestial coordinates to the ARI/ESA
           Gaia archives through this server.
         </p>
