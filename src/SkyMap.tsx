@@ -133,7 +133,7 @@ export default function SkyMap(p: Props) {
     const c = el.getContext("2d")!;
     c.setTransform(dpr, 0, 0, dpr, 0, 0);
     c.clearRect(0, 0, size.w, size.h);
-    c.font = `11px ${p.fontFamily}`;
+    c.font = `12px ${p.fontFamily}`;
     c.textBaseline = "middle";
     c.save();
     clipViewport(c);
@@ -314,7 +314,7 @@ export default function SkyMap(p: Props) {
     c.fillStyle = colors.muted;
     c.textAlign = "center";
     if (personal) {
-      c.font = `9px ${p.fontFamily}`;
+      c.font = `10px ${p.fontFamily}`;
       for (let i = 0; i <= 4; i++) {
         const az = wrap(p.view.az + (i - 2) * 22.5),
           point = getPoint(az, 0);
@@ -419,7 +419,7 @@ export default function SkyMap(p: Props) {
           .matches
           ? 1
           : 0.6 + 0.4 * Math.sin(now / 500) ** 2;
-        c.strokeStyle = colors.satellite;
+        c.strokeStyle = colors.satelliteBracket;
         c.lineWidth = 1;
         for (const q of points.current.filter(
           (q) => q.o.kind === "satellite",
@@ -498,7 +498,7 @@ export default function SkyMap(p: Props) {
           c.moveTo(center.x, center.y + 19);
           c.lineTo(center.x, center.y + 25);
           c.stroke();
-          c.font = `10px ${p.fontFamily}`;
+          c.font = `11px ${p.fontFamily}`;
           c.fillStyle = colors.ink;
           c.fillText(
             t.moving ? "SLEWING" : "TELESCOPE",

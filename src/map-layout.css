@@ -15,7 +15,7 @@
   gap: 9px;
 }
 .earth-time .eyebrow {
-  font-size: 9px;
+  font-size: 10px;
 }
 .clock {
   font-size: 13px;
@@ -24,7 +24,7 @@
 .date-label {
   align-self: auto;
   padding: 0;
-  font-size: 9px;
+  font-size: 10px;
 }
 .brand {
   padding: 0;
@@ -38,19 +38,19 @@
   display: flex;
   align-items: center;
   gap: 12px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.2;
 }
 .location-top .eyebrow {
-  font-size: 8px;
+  font-size: 10px;
   max-width: 80px;
   line-height: 1.4;
 }
 .location-top small {
-  font-size: 9px;
+  font-size: 10px;
 }
 .workspace {
-  grid-template-columns: 210px minmax(0, 1fr) 280px;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
   gap: 20px;
   height: calc(100dvh - 90px);
   min-height: 480px;
@@ -87,7 +87,7 @@
   background: var(--paper);
 }
 .search-box input {
-  font-size: 10px;
+  font-size: 11px;
 }
 .search-results {
   top: 27px;
@@ -96,7 +96,7 @@
 .map-readout {
   top: 44px;
   left: 0;
-  font-size: 9px;
+  font-size: 10px;
   gap: 6px;
 }
 .sky-condition {
@@ -116,7 +116,7 @@
   padding: 0;
   border: 0;
   pointer-events: none;
-  font-size: 8px;
+  font-size: 10px;
 }
 .scope-strip {
   display: none;
@@ -136,10 +136,10 @@
   bottom: 43px;
 }
 .scope-strip .eyebrow {
-  font-size: 8px;
+  font-size: 10px;
 }
 .scope-strip strong {
-  font-size: 9px;
+  font-size: 10px;
   margin-top: 4px;
 }
 .scope-actions {
@@ -149,14 +149,14 @@
 .scope-actions button {
   flex: none;
   background: var(--paper);
-  font-size: 9px;
+  font-size: 10px;
 }
 .scope-actions button:hover {
   background: var(--faint);
 }
 .daylight-note {
   bottom: 23px;
-  font-size: 8px;
+  font-size: 10px;
 }
 .has-telescope .daylight-note {
   bottom: 63px;
@@ -207,14 +207,14 @@
   gap: 10px;
   padding: 7px 0 0;
   color: var(--muted);
-  font-size: 8px;
+  font-size: 10px;
 }
 .context-diagram .galaxy-label {
-  font-size: 8px;
+  font-size: 10px;
   fill: var(--muted-strong);
 }
 .context-diagram .galaxy-distance {
-  font-size: 11px;
+  font-size: 12px;
   fill: var(--ink);
 }
 .galaxy-scale {
@@ -232,7 +232,7 @@
     padding-right: 28px;
   }
   .workspace {
-    grid-template-columns: 220px minmax(0, 1fr) 300px;
+    grid-template-columns: 250px minmax(0, 1fr) 340px;
     gap: 24px;
   }
 }
@@ -241,11 +241,11 @@
     padding: 8px 18px 0;
   }
   .workspace {
-    grid-template-columns: 185px minmax(0, 1fr) 248px;
+    grid-template-columns: 210px minmax(0, 1fr) 280px;
     gap: 16px;
   }
   .masthead {
-    grid-template-columns: 185px 1fr 248px;
+    grid-template-columns: 210px 1fr 280px;
     gap: 16px;
   }
   .location-top small,
@@ -253,14 +253,14 @@
     display: none;
   }
   .search-box input {
-    font-size: 9px;
+    font-size: 10px;
   }
   .scope-actions button {
-    font-size: 8px;
+    font-size: 10px;
     padding: 5px;
   }
   .scope-strip strong {
-    font-size: 8px;
+    font-size: 10px;
   }
   .map-caption span + span {
     display: none;
@@ -271,11 +271,11 @@
     padding: 6px 12px 0;
   }
   .workspace {
-    grid-template-columns: 166px minmax(0, 1fr) 216px;
+    grid-template-columns: 196px minmax(0, 1fr) 236px;
     gap: 12px;
   }
   .masthead {
-    grid-template-columns: 166px 1fr 216px;
+    grid-template-columns: 196px 1fr 236px;
     gap: 12px;
   }
   .scope-strip {
@@ -288,7 +288,7 @@
   }
   .has-telescope .map-caption {
     bottom: 54px;
-    font-size: 8px;
+    font-size: 10px;
   }
   .has-telescope .zoom-controls {
     bottom: 75px;
@@ -320,7 +320,7 @@
     display: none;
   }
   .location-top {
-    font-size: 9px;
+    font-size: 10px;
     gap: 5px;
   }
   .location-top .eyebrow,
@@ -331,7 +331,7 @@
     margin-top: 6px;
   }
   .mobile-tabs button {
-    font-size: 9px;
+    font-size: 10px;
     min-height: 26px;
     padding: 4px;
   }
@@ -352,7 +352,7 @@
     width: calc(100% - 222px);
   }
   .search-box input {
-    font-size: 9px;
+    font-size: 10px;
   }
   .search-results {
     width: calc(100vw - 24px);
@@ -360,11 +360,11 @@
   }
   .map-readout {
     top: 39px;
-    font-size: 8px;
+    font-size: 10px;
     gap: 5px;
   }
   .map-caption {
-    font-size: 8px;
+    font-size: 10px;
   }
   .scope-strip {
     flex-direction: column;
@@ -397,7 +397,7 @@
   }
   .has-telescope .daylight-note {
     bottom: 76px;
-    font-size: 8px;
+    font-size: 10px;
   }
   .time-deck {
     height: 80px;
@@ -419,7 +419,7 @@
 }
 .solar-controls button {
   flex: 1;
-  font-size: 8px;
+  font-size: 10px;
   min-height: 23px;
   padding: 4px;
 }
@@ -432,12 +432,12 @@
   align-items: baseline;
   gap: 10px;
   margin: 4px 0 9px;
-  font-size: 8px;
+  font-size: 10px;
   color: var(--muted);
 }
 .solar-distance strong {
   color: var(--ink);
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 400;
 }
 .satellite-sources {
@@ -445,7 +445,7 @@
   flex-wrap: wrap;
   gap: 9px 15px;
   margin: -7px 0 17px;
-  font-size: 8px;
+  font-size: 10px;
   color: var(--muted);
 }
 .object-stats strong {
@@ -465,7 +465,7 @@
 .heading-controls span {
   min-width: 100px;
   text-align: center;
-  font-size: 10px;
+  font-size: 11px;
 }
 .heading-controls button {
   width: 34px;
@@ -494,10 +494,10 @@
 @media (max-width: 1000px) {
   .view-switch button {
     padding: 5px 5px;
-    font-size: 8px;
+    font-size: 10px;
   }
   .search-box {
-    width: calc(100% - 184px);
+    width: calc(100% - 214px);
   }
   .search-box kbd {
     display: none;
@@ -519,7 +519,7 @@
   gap: 5px;
 }
 .terrain-controls button {
-  font-size: 8px;
+  font-size: 10px;
   min-height: 21px;
   padding: 4px 6px;
   background: var(--paper);
@@ -532,7 +532,7 @@
   right: 0;
   top: 26px;
   width: 190px;
-  font-size: 8px;
+  font-size: 10px;
   text-align: right;
   color: var(--muted);
   background: var(--paper);
@@ -544,10 +544,10 @@
 }
 .lookup-elevation {
   margin: -4px 0 16px;
-  font-size: 9px;
+  font-size: 10px;
 }
 .terrain-obstruction {
-  font-size: 9px;
+  font-size: 10px;
   border-left: 2px solid var(--muted);
   padding-left: 8px;
   color: var(--muted);
@@ -559,7 +559,7 @@
 @media (max-width: 760px) {
   .personal-stage .map-readout {
     gap: 4px 8px;
-    font-size: 8px;
+    font-size: 10px;
   }
   .terrain-controls {
     top: 34px;
@@ -574,7 +574,7 @@
   align-items: center;
   gap: 8px;
   margin-top: 10px;
-  font-size: 9px;
+  font-size: 10px;
 }
 .satellite-trails-control [role="group"] { display: flex; }
 .satellite-trails-control button { padding: 5px 8px; }
@@ -591,10 +591,10 @@
 }
 .star-cutoff .range-heading {
   margin-bottom: 7px;
-  font-size: 9px;
+  font-size: 10px;
 }
 .star-cutoff output {
-  font-size: 10px;
+  font-size: 11px;
   color: var(--ink);
 }
 .star-cutoff input {
@@ -602,7 +602,7 @@
 }
 .star-cutoff .small-note {
   margin: 7px 0 0;
-  font-size: 8px;
+  font-size: 10px;
   line-height: 1.5;
 }
 .star-cutoff.disabled {
@@ -614,7 +614,7 @@
   width: 100%;
   margin-top: 7px;
   padding: 5px;
-  font-size: 8px;
+  font-size: 10px;
 }
 .object-heading h2.catalogue-star-name {
   font-size: 19px;
@@ -635,13 +635,13 @@
 .left-rail [hidden] { display: none; }
 .sky-controls { display: flex; flex-direction: column; gap: inherit; }
 .control-panel-tabs { display: flex; }
-.control-panel-tabs button { flex: 1; font-size: 10px; padding: 7px 4px; }
+.control-panel-tabs button { flex: 1; font-size: 11px; padding: 7px 4px; }
 .control-panel-tabs button + button { border-left: 0; }
 .layer-row .object-symbol { flex: 0 0 21px; }
 .layer-row .object-symbol svg { display: block; width: 17px; height: 17px; margin: auto; fill: none; stroke: currentColor; stroke-width: 1; stroke-linejoin: round; }
 .telescope-blueprint { margin: 12px 0 13px; }
 .telescope-blueprint svg { display: block; width: 100%; }
-.telescope-blueprint svg text { font: 9px var(--font-mono); fill: var(--muted); stroke: none; }
+.telescope-blueprint svg text { font: 10px var(--font-mono); fill: var(--muted); stroke: none; }
 .blueprint-guide { fill: none; stroke: var(--rule); stroke-width: .65; stroke-dasharray: 2 4; }
 .blueprint-surface { stroke: var(--muted); stroke-width: .75; stroke-linejoin: round; }
 .blueprint-surface.tube { fill: var(--paper); stroke: var(--ink); stroke-width: 1.05; }
@@ -657,17 +657,17 @@
 .blueprint-dial .motor-needle { stroke: var(--ink); stroke-width: 1.2; }
 .blueprint-dial .motor-hub { fill: var(--paper); stroke: var(--ink); }
 .blueprint-dial .axis-value { fill: var(--ink); font-size: 12px; }
-.telescope-blueprint figcaption { display: flex; justify-content: space-between; font-size: 8px; color: var(--muted); margin-top: 3px; letter-spacing: .04em; }
-.motor-buttons button { font-size: 9px; padding: 6px 3px; }
+.telescope-blueprint figcaption { display: flex; justify-content: space-between; font-size: 10px; color: var(--muted); margin-top: 3px; letter-spacing: .04em; }
+.motor-buttons button { font-size: 10px; padding: 6px 3px; }
 .motor-buttons button[aria-pressed="true"] { background: var(--faint); border-color: var(--border); }
 .telescope-target { margin: 20px 0 9px; }
 .telescope-target strong { display: block; overflow-wrap: anywhere; font-size: 13px; font-weight: normal; margin: 6px 0; }
-.telescope-target small { color: var(--muted); font-size: 8px; }
-.telescope-slew { width: 100%; display: flex; justify-content: space-between; font-size: 10px; }
+.telescope-target small { color: var(--muted); font-size: 10px; }
+.telescope-slew { width: 100%; display: flex; justify-content: space-between; font-size: 11px; }
 .telescope-pointing { display: grid; grid-template-columns: 1fr; gap: 5px; margin: 6px 0 14px; }
-.telescope-pointing button { width: 100%; padding: 7px 3px; text-align: left; font-size: 9px; }
-.telescope-readout { border-block: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 9px 0; margin: 0 0 15px; font-size: 9px; color: var(--muted); }
-.telescope-readout span:last-child { width: 100%; font-size: 8px; }
+.telescope-pointing button { width: 100%; padding: 7px 3px; text-align: left; font-size: 10px; }
+.telescope-readout { border-block: 1px solid var(--rule); display: flex; flex-wrap: wrap; gap: 6px 12px; padding: 9px 0; margin: 0 0 15px; font-size: 10px; color: var(--muted); }
+.telescope-readout span:last-child { width: 100%; font-size: 10px; }
 :root[data-theme="dark"] {
   --paper: #22272e;
   --ink: #d8e1ea;
@@ -683,25 +683,27 @@
   --grid: #3d444d;
   --soft-shadow: #1c212899;
   --backdrop: #1c2128cc;
+  --satellite-bracket: #a3d36d;
+  --satellite-dot: #ff8086;
   color-scheme: dark;
 }
 .masthead {
-  grid-template-columns: 210px minmax(0, 1fr) auto 66px;
+  grid-template-columns: 240px minmax(0, 1fr) auto 66px;
 }
 .theme-toggle {
   min-height: 25px;
   padding: 4px 5px;
-  font-size: 9px;
+  font-size: 10px;
   white-space: nowrap;
 }
 @media (max-width: 1250px) {
   .masthead {
-    grid-template-columns: 185px minmax(0, 1fr) auto 66px;
+    grid-template-columns: 210px minmax(0, 1fr) auto 66px;
   }
 }
 @media (min-width: 761px) and (max-width: 1000px) {
   .masthead {
-    grid-template-columns: 166px minmax(0, 1fr) auto 58px;
+    grid-template-columns: 196px minmax(0, 1fr) auto 58px;
   }
   .location-top .eyebrow {
     display: none;

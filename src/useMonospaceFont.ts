@@ -16,7 +16,7 @@ export function useMonospaceFont() {
     // Canvas labels need fresh measurements when the bundled face finishes
     // loading, including when observation time is paused.
     let active = true;
-    document.fonts?.load(`11px ${fontFamily}`).then(
+    document.fonts?.load(`12px ${fontFamily}`).then(
       () => { if (active) setFontRevision((revision) => revision + 1); },
       () => { /* The selected stack's fallback remains usable if loading fails. */ },
     );

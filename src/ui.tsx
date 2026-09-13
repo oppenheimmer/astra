@@ -14,7 +14,11 @@ export const signature = (kind: string, body?: string) =>
   ) : kind === "planet" ? (
     "⊙"
   ) : kind === "satellite" ? (
-    "[·]"
+    <span className="satellite-symbol">
+      <span className="satellite-symbol-bracket">[</span>
+      <span className="satellite-symbol-dot">·</span>
+      <span className="satellite-symbol-bracket">]</span>
+    </span>
   ) : kind === "galaxy" ? (
     <span className="galaxy-symbol" aria-label="Galaxy" />
   ) : (

@@ -113,8 +113,11 @@ export function drawSkyObjects(
       c.fill();
     } else if (o.kind === "satellite") {
       radius = 4;
-      c.fillStyle = o.sunlit ? colors.satellite : colors.shadow;
+      // Satellites in Earth's shadow keep their colour but fade.
+      c.fillStyle = colors.satelliteDot;
+      c.globalAlpha = o.sunlit ? 1 : 0.45;
       c.fillRect(s.x - 1.5, s.y - 1.5, 3, 3);
+      c.globalAlpha = 1;
     } else {
       radius = 5;
       c.strokeStyle = colors.object;

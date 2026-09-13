@@ -119,14 +119,14 @@ describe("Starmap desk", () => {
       fireEvent.change(dropdown, { target: { value: "departure" } });
       expect(localStorage.getItem(STORAGE_KEYS.font)).toBe("departure");
       expect(document.documentElement.style.getPropertyValue("--font-mono")).toBe(monospaceFamily("departure"));
-      expect(load).toHaveBeenLastCalledWith(`11px ${monospaceFamily("departure")}`);
-      expect(getContext.mock.results.some((result) => result.value.font === `11px ${monospaceFamily("departure")}`)).toBe(true);
+      expect(load).toHaveBeenLastCalledWith(`12px ${monospaceFamily("departure")}`);
+      expect(getContext.mock.results.some((result) => result.value.font === `12px ${monospaceFamily("departure")}`)).toBe(true);
 
       getContext.mockClear();
       await act(async () => { finishLoads[0](); });
       expect(getContext).not.toHaveBeenCalled();
       await act(async () => { finishLoads[1](); });
-      expect(getContext.mock.results.some((result) => result.value.font === `11px ${monospaceFamily("departure")}`)).toBe(true);
+      expect(getContext.mock.results.some((result) => result.value.font === `12px ${monospaceFamily("departure")}`)).toBe(true);
     } finally {
       getContext.mockRestore();
       if (fontDescriptor) Object.defineProperty(document, "fonts", fontDescriptor);

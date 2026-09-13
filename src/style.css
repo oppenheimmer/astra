@@ -11,7 +11,7 @@
   background: var(--paper);
   font-synthesis: none;
   font-weight: 400;
-  font-size: 11px;
+  font-size: 12px;
   --paper: #ffffff;
   --ink: #414141;
   --muted: #595959;
@@ -26,6 +26,8 @@
   --grid: #cdcdc6;
   --soft-shadow: #35353517;
   --backdrop: #ecececc9;
+  --satellite-bracket: #38955f;
+  --satellite-dot: #cc000a;
   color-scheme: light;
 }
 * {
@@ -94,7 +96,7 @@ p {
   margin: 0;
 }
 h3 {
-  font-size: 11px;
+  font-size: 12px;
   letter-spacing: 1px;
 }
 input[type="checkbox"] {
@@ -157,7 +159,7 @@ input[type="range"]::-moz-range-thumb {
   gap: 26px;
 }
 .eyebrow {
-  font-size: 10px;
+  font-size: 11px;
   letter-spacing: 0.5px;
   color: var(--muted);
   display: block;
@@ -176,7 +178,7 @@ input[type="range"]::-moz-range-thumb {
   line-height: 1.25;
 }
 .date-label {
-  font-size: 10px;
+  font-size: 11px;
   align-self: end;
   padding-bottom: 5px;
   color: var(--muted);
@@ -203,7 +205,7 @@ input[type="range"]::-moz-range-thumb {
 .brand p {
   flex-basis: 100%;
   text-align: center;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 2px;
   margin-top: 9px;
   color: var(--muted);
@@ -218,7 +220,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .location-top small {
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   color: var(--muted);
 }
 .location-top:hover {
@@ -253,7 +255,7 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 10px;
+  font-size: 11px;
   line-height: 13px;
   margin-bottom: 13px;
   letter-spacing: 0.35px;
@@ -267,7 +269,7 @@ input[type="range"]::-moz-range-thumb {
   border-bottom: 1px solid var(--rule);
 }
 .section-title > span:nth-child(2) {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   letter-spacing: 0;
   align-self: center;
@@ -275,7 +277,7 @@ input[type="range"]::-moz-range-thumb {
 .section-title .text-toggle {
   min-height: 15px;
   padding: 0 4px;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 14px;
   position: relative;
   top: -1px;
@@ -306,12 +308,12 @@ input[type="range"]::-moz-range-thumb {
 .location-edit {
   flex-shrink: 0;
   white-space: nowrap;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .small-note {
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.55;
   margin: 5px 0;
 }
@@ -321,7 +323,7 @@ input[type="range"]::-moz-range-thumb {
   margin-top: 10px;
 }
 .two-buttons button {
-  font-size: 9px;
+  font-size: 10px;
   flex: 1;
   padding: 5px;
 }
@@ -338,18 +340,24 @@ input[type="range"]::-moz-range-thumb {
   text-align: center;
 }
 .object-symbol.satellite {
-  font-size: 11px;
+  font-size: 12px;
+}
+.satellite-symbol-bracket {
+  color: var(--satellite-bracket);
+}
+.satellite-symbol-dot {
+  color: var(--satellite-dot);
 }
 .count {
   margin-left: auto;
   color: var(--dim);
-  font-size: 10px;
+  font-size: 11px;
 }
 .range-heading {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 10px;
+  font-size: 11px;
 }
 .range-heading strong {
   font-weight: 400;
@@ -358,7 +366,7 @@ input[type="range"]::-moz-range-thumb {
 .range-labels {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   margin-top: 1px;
 }
@@ -372,17 +380,17 @@ input[type="range"]::-moz-range-thumb {
   width: 100%;
   justify-content: space-between;
   padding: 4px 0;
-  font-size: 10px;
+  font-size: 11px;
 }
 .suggestions button span + span {
   color: var(--muted);
 }
 .instrument-name {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.5;
 }
 .sim-label {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   letter-spacing: 0.7px;
   margin-top: 3px;
@@ -391,7 +399,7 @@ input[type="range"]::-moz-range-thumb {
   width: 100%;
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 10px;
   margin-top: 11px;
   margin-bottom: 11px;
   padding: 8px;
@@ -403,12 +411,12 @@ input[type="range"]::-moz-range-thumb {
 .field-label {
   display: block;
   color: var(--muted);
-  font-size: 9px;
+  font-size: 10px;
 }
 .field-label select {
   display: block;
   width: 100%;
-  font-size: 9px;
+  font-size: 10px;
   margin-top: 5px;
   padding: 6px 3px;
 }
@@ -418,7 +426,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .shape-control button {
   width: 50%;
-  font-size: 9px;
+  font-size: 10px;
   padding: 4px;
   min-height: 24px;
 }
@@ -436,20 +444,20 @@ input[type="range"]::-moz-range-thumb {
 }
 .field-inputs label {
   width: 50%;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .field-inputs input {
   width: 100%;
   display: block;
-  font-size: 10px;
+  font-size: 11px;
   margin-top: 4px;
   padding: 4px 6px;
 }
 .about-link {
   border: 0;
   padding: 5px 0;
-  font-size: 9px;
+  font-size: 10px;
   text-align: left;
   margin-top: auto;
   color: var(--muted);
@@ -475,13 +483,13 @@ input[type="range"]::-moz-range-thumb {
   margin-top: 4px;
 }
 .stage-title .eyebrow {
-  font-size: 9px;
+  font-size: 10px;
 }
 .view-switch {
   display: flex;
 }
 .view-switch button {
-  font-size: 9px;
+  font-size: 10px;
   min-height: 24px;
   padding: 5px 8px;
 }
@@ -507,14 +515,14 @@ input[type="range"]::-moz-range-thumb {
   border: 0;
   padding: 6px 0;
   flex: 1;
-  font-size: 10px;
+  font-size: 11px;
   outline-offset: 1px;
 }
 .search-box kbd {
   font: inherit;
   padding: 1px 5px;
   border: 1px solid var(--rule);
-  font-size: 9px;
+  font-size: 10px;
 }
 .search-results {
   position: absolute;
@@ -536,11 +544,11 @@ input[type="range"]::-moz-range-thumb {
   border: 0;
   border-bottom: 1px solid var(--faint);
   gap: 10px;
-  font-size: 10px;
+  font-size: 11px;
   padding: 10px;
 }
 .search-results small {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   white-space: nowrap;
 }
@@ -582,7 +590,7 @@ input[type="range"]::-moz-range-thumb {
   flex-direction: column;
   gap: 5px;
   pointer-events: none;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .zoom-controls {
@@ -609,7 +617,7 @@ input[type="range"]::-moz-range-thumb {
   left: 30px;
   right: 30px;
   text-align: center;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--dim);
   pointer-events: none;
 }
@@ -625,17 +633,17 @@ input[type="range"]::-moz-range-thumb {
   flex-direction: column;
   gap: 5px;
   z-index: 5;
-  font-size: 9px;
+  font-size: 10px;
 }
 .sky-tooltip strong {
   font-size: 15px;
   font-weight: 400;
 }
 .sky-tooltip .eyebrow {
-  font-size: 9px;
+  font-size: 10px;
 }
 .sky-tooltip small {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   margin-top: 3px;
 }
@@ -647,7 +655,7 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   justify-content: space-between;
   gap: 12px;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   padding: 11px 4px 13px;
   border-bottom: 1px solid var(--rule);
@@ -660,11 +668,11 @@ input[type="range"]::-moz-range-thumb {
   gap: 15px;
 }
 .scope-strip .eyebrow {
-  font-size: 9px;
+  font-size: 10px;
 }
 .scope-strip strong {
   font-weight: 400;
-  font-size: 9px;
+  font-size: 10px;
   display: block;
   margin-top: 5px;
   line-height: 1.5;
@@ -674,7 +682,7 @@ input[type="range"]::-moz-range-thumb {
   gap: 7px;
 }
 .scope-actions button {
-  font-size: 9px;
+  font-size: 10px;
   padding: 5px 7px;
   white-space: nowrap;
 }
@@ -683,7 +691,7 @@ input[type="range"]::-moz-range-thumb {
   margin-bottom: 17px;
 }
 .object-heading .eyebrow {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.6;
 }
 .object-heading h2 {
@@ -697,7 +705,7 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  font-size: 9px;
+  font-size: 10px;
 }
 .visible-mark {
   color: var(--muted-strong);
@@ -717,18 +725,18 @@ input[type="range"]::-moz-range-thumb {
   gap: 10px;
 }
 .object-stats span {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
   flex-shrink: 0;
 }
 .object-stats strong {
-  font-size: 10px;
+  font-size: 11px;
   font-weight: 400;
   text-align: right;
 }
 .object-fact {
   font-family: var(--font-mono);
-  font-size: 10px;
+  font-size: 11px;
   line-height: 1.75;
   margin: 18px 0;
   color: var(--muted);
@@ -739,7 +747,7 @@ input[type="range"]::-moz-range-thumb {
   gap: 7px;
 }
 .object-actions button {
-  font-size: 9px;
+  font-size: 10px;
   min-height: 30px;
 }
 .primary {
@@ -762,7 +770,7 @@ input[type="range"]::-moz-range-thumb {
   border-color: var(--rule);
 }
 .coordinate-row {
-  font-size: 9px;
+  font-size: 10px;
   display: flex;
   justify-content: space-between;
   margin: 13px 0 22px;
@@ -777,11 +785,11 @@ input[type="range"]::-moz-range-thumb {
   gap: 8px;
   border-top: 1px solid var(--rule);
   padding-top: 12px;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .diagram-label span + span {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--dim);
 }
 .context-diagram svg {
@@ -793,7 +801,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .context-diagram svg text {
   font-family: var(--font-mono);
-  font-size: 8px;
+  font-size: 10px;
   fill: var(--muted);
 }
 .diagram-grid {
@@ -835,7 +843,7 @@ input[type="range"]::-moz-range-thumb {
   stroke-width: 0.7;
 }
 .diagram-note {
-  font-size: 9px;
+  font-size: 10px;
   line-height: 1.6;
   color: var(--dim);
 }
@@ -848,7 +856,7 @@ input[type="range"]::-moz-range-thumb {
 .neighbour-list div {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 10px;
   line-height: 2;
 }
 .neighbour-list span + span {
@@ -899,7 +907,7 @@ input[type="range"]::-moz-range-thumb {
 }
 .empty-explorer small {
   line-height: 1.8;
-  font-size: 10px;
+  font-size: 11px;
 }
 .time-deck {
   border-top: 1px solid var(--rule);
@@ -915,10 +923,10 @@ input[type="range"]::-moz-range-thumb {
   align-items: center;
   gap: 8px;
   min-width: 100px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .live-light {
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .pulse {
@@ -930,7 +938,7 @@ input[type="range"]::-moz-range-thumb {
 .time-buttons button {
   min-width: 32px;
   min-height: 27px;
-  font-size: 10px;
+  font-size: 11px;
 }
 .time-buttons button + button {
   border-left: 0;
@@ -939,11 +947,11 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   align-items: center;
   gap: 8px;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .datetime-label input {
-  font-size: 10px;
+  font-size: 11px;
   padding: 5px;
 }
 .time-deck .day-slider {
@@ -951,11 +959,11 @@ input[type="range"]::-moz-range-thumb {
   min-width: 70px;
 }
 .time-deck > select {
-  font-size: 10px;
+  font-size: 11px;
   padding: 5px;
 }
 .now-button {
-  font-size: 10px;
+  font-size: 11px;
   white-space: nowrap;
 }
 .motor-status {
@@ -963,17 +971,17 @@ input[type="range"]::-moz-range-thumb {
   align-items: center;
   gap: 14px;
   margin-left: auto;
-  font-size: 9px;
+  font-size: 10px;
   color: var(--muted);
 }
 .motor-status button {
-  font-size: 9px;
+  font-size: 10px;
   min-height: 27px;
 }
 .bottom-line {
   display: flex;
   justify-content: space-between;
-  font-size: 9px;
+  font-size: 10px;
   letter-spacing: 0.3px;
   color: var(--dim);
   padding-top: 12px;
@@ -998,7 +1006,7 @@ input[type="range"]::-moz-range-thumb {
   padding: 13px 20px;
   background: var(--ink);
   color: var(--paper);
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.6;
   z-index: 30;
   box-shadow: 4px 4px 0 var(--rule);
@@ -1041,19 +1049,19 @@ input[type="range"]::-moz-range-thumb {
   padding: 0 5px;
 }
 .modal p {
-  font-size: 11px;
+  font-size: 12px;
   line-height: 1.8;
   color: var(--muted);
   margin: 14px 0;
 }
 .modal .primary {
   width: 100%;
-  font-size: 10px;
+  font-size: 11px;
   padding: 10px;
   margin: 17px 0;
 }
 .modal label {
-  font-size: 9px;
+  font-size: 10px;
   display: block;
   margin-top: 17px;
   color: var(--muted);
@@ -1064,7 +1072,7 @@ input[type="range"]::-moz-range-thumb {
   width: 100%;
   margin-top: 6px;
   color: var(--ink);
-  font-size: 11px;
+  font-size: 12px;
   padding: 9px;
 }
 .form-columns {
@@ -1078,7 +1086,7 @@ input[type="range"]::-moz-range-thumb {
 .modal .form-message {
   padding: 10px;
   border: 1px dashed var(--border);
-  font-size: 10px;
+  font-size: 11px;
 }
 .about-modal {
   max-width: 620px;
@@ -1152,10 +1160,10 @@ input[type="range"]::-moz-range-thumb {
     display: none;
   }
   .object-stats span {
-    font-size: 8px;
+    font-size: 10px;
   }
   .object-stats strong {
-    font-size: 9px;
+    font-size: 10px;
   }
   .object-heading h2 {
     font-size: 26px;
@@ -1203,7 +1211,7 @@ input[type="range"]::-moz-range-thumb {
     font-size: 19px;
   }
   .location-top {
-    font-size: 11px;
+    font-size: 12px;
   }
   .left-rail {
     gap: 19px;
@@ -1222,13 +1230,13 @@ input[type="range"]::-moz-range-thumb {
   }
   .map-readout {
     top: 17px;
-    font-size: 8px;
+    font-size: 10px;
   }
   .search-box {
     width: 100%;
   }
   .search-box input {
-    font-size: 9px;
+    font-size: 10px;
   }
   .stage-top {
     flex-direction: column;
@@ -1238,10 +1246,10 @@ input[type="range"]::-moz-range-thumb {
     align-self: end;
   }
   .map-caption {
-    font-size: 8px;
+    font-size: 10px;
   }
   .diagram-label {
-    font-size: 9px;
+    font-size: 10px;
   }
 }
 @media (max-width: 760px) {
@@ -1269,7 +1277,7 @@ input[type="range"]::-moz-range-thumb {
   }
   .brand p {
     text-align: left;
-    font-size: 8px;
+    font-size: 10px;
     letter-spacing: 1px;
     margin-top: 5px;
   }
@@ -1279,13 +1287,13 @@ input[type="range"]::-moz-range-thumb {
   .location-top {
     grid-column: 2;
     grid-row: 1;
-    font-size: 11px;
+    font-size: 12px;
   }
   .location-top .eyebrow {
-    font-size: 9px;
+    font-size: 10px;
   }
   .location-top small {
-    font-size: 9px;
+    font-size: 10px;
   }
   .mobile-tabs {
     display: flex;
@@ -1293,7 +1301,7 @@ input[type="range"]::-moz-range-thumb {
   }
   .mobile-tabs button {
     width: 33.333%;
-    font-size: 10px;
+    font-size: 11px;
     padding: 7px;
   }
   .mobile-tabs button + button {
@@ -1344,7 +1352,7 @@ input[type="range"]::-moz-range-thumb {
     font-size: 13px;
   }
   .view-switch button {
-    font-size: 9px;
+    font-size: 10px;
     padding: 5px 7px;
   }
   .search-box {
@@ -1352,10 +1360,10 @@ input[type="range"]::-moz-range-thumb {
     height: 30px;
   }
   .search-box input {
-    font-size: 9px;
+    font-size: 10px;
   }
   .map-readout {
-    font-size: 8px;
+    font-size: 10px;
     top: 14px;
     left: 0;
   }
@@ -1368,7 +1376,7 @@ input[type="range"]::-moz-range-thumb {
     min-height: 27px;
   }
   .map-caption {
-    font-size: 8px;
+    font-size: 10px;
     padding: 8px 0;
     letter-spacing: 0;
   }
@@ -1377,17 +1385,17 @@ input[type="range"]::-moz-range-thumb {
     gap: 8px;
   }
   .scope-strip strong {
-    font-size: 9px;
+    font-size: 10px;
   }
   .scope-strip .eyebrow {
-    font-size: 8px;
+    font-size: 10px;
   }
   .scope-actions button {
-    font-size: 9px;
+    font-size: 10px;
     padding: 6px;
   }
   .daylight-note {
-    font-size: 8px;
+    font-size: 10px;
     bottom: 0;
     left: 10px;
     right: 10px;
@@ -1399,7 +1407,7 @@ input[type="range"]::-moz-range-thumb {
     min-height: 83px;
   }
   .time-status {
-    font-size: 9px;
+    font-size: 10px;
     min-width: 90px;
     flex: 1;
   }
@@ -1411,7 +1419,7 @@ input[type="range"]::-moz-range-thumb {
     flex: 1;
   }
   .datetime-label input {
-    font-size: 10px;
+    font-size: 11px;
     width: 100%;
     max-width: 200px;
   }
@@ -1420,26 +1428,26 @@ input[type="range"]::-moz-range-thumb {
   }
   .time-deck > select {
     order: 3;
-    font-size: 9px;
+    font-size: 10px;
     padding: 5px;
   }
   .now-button {
     order: 5;
-    font-size: 9px;
+    font-size: 10px;
   }
   .motor-status {
     order: 6;
   }
   .motor-status button {
-    font-size: 9px;
+    font-size: 10px;
   }
   .time-buttons button {
-    font-size: 9px;
+    font-size: 10px;
     min-width: 28px;
     padding: 5px;
   }
   .bottom-line {
-    font-size: 8px;
+    font-size: 10px;
     gap: 10px;
   }
   .bottom-line span:last-child {
@@ -1456,17 +1464,17 @@ input[type="range"]::-moz-range-thumb {
     font-size: 35px;
   }
   .object-stats span {
-    font-size: 9px;
+    font-size: 10px;
   }
   .object-stats strong {
-    font-size: 11px;
+    font-size: 12px;
   }
   .object-fact {
-    font-size: 11px;
+    font-size: 12px;
   }
   .toast {
     bottom: 22px;
-    font-size: 10px;
+    font-size: 11px;
     width: max-content;
   }
   .sky-tooltip {
