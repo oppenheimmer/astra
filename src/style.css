@@ -5,7 +5,7 @@
   font-weight: 400;
 }
 :root {
-  --font-mono: Departure, "Courier New", monospace;
+  --font-mono: Menlo, "DejaVu Sans Mono", monospace;
   font-family: var(--font-mono);
   color: var(--ink);
   background: var(--paper);
@@ -255,8 +255,8 @@ input[type="range"]::-moz-range-thumb {
   display: flex;
   justify-content: space-between;
   gap: 8px;
-  font-size: 11px;
-  line-height: 13px;
+  font-size: 13px;
+  line-height: 15px;
   margin-bottom: 13px;
   letter-spacing: 0.35px;
 }

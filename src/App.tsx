@@ -465,7 +465,7 @@ export default function App() {
             <section>
               <SectionTitle n="03">HIGHLIGHTS</SectionTitle>
               <div className="range-heading">
-                <span>Things worth a look</span>
+                <span>Prominent Items</span>
                 <strong>{highlightLimit}</strong>
               </div>
               <input
@@ -538,7 +538,7 @@ export default function App() {
             <input
               id="object-search"
               aria-label="Search sky objects"
-              placeholder="Find a star, planet, galaxy or satellite…"
+              placeholder="Find"
               value={query}
               onChange={(e) => {
                 setQuery(e.target.value);

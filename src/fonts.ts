@@ -9,7 +9,7 @@ export const MONOSPACE_FONTS = [
 ] as const;
 
 export type MonospaceFont = (typeof MONOSPACE_FONTS)[number]["id"];
-export const DEFAULT_FONT: MonospaceFont = "departure";
+export const DEFAULT_FONT: MonospaceFont = "menlo";
 export const isMonospaceFont = (value: unknown): value is MonospaceFont =>
   MONOSPACE_FONTS.some((font) => font.id === value);
 export const monospaceFamily = (id: MonospaceFont): string =>

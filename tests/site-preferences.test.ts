@@ -75,13 +75,13 @@ describe("Saved observing site", () => {
 
 describe("Display preferences", () => {
   it("restores only a supported monospace font ID", () => {
-    expect(readMonospaceFont()).toBe("departure");
+    expect(readMonospaceFont()).toBe("menlo");
     saveMonospaceFont("system");
     expect(readMonospaceFont()).toBe("system");
     storage.setItem(STORAGE_KEYS.font, "Arial; background: url(https://example.com)");
-    expect(readMonospaceFont()).toBe("departure");
+    expect(readMonospaceFont()).toBe("menlo");
     storage.setItem(STORAGE_KEYS.font, "removed-font");
-    expect(readMonospaceFont()).toBe("departure");
+    expect(readMonospaceFont()).toBe("menlo");
   });
   it("clamps the saved star magnitude and defaults when unreadable", () => {
     expect(readStarMagnitude()).toBe(DEFAULT_MAGNITUDE);
@@ -108,7 +108,7 @@ describe("Display preferences", () => {
     expect(() => writeStored("k", "v")).not.toThrow();
     expect(readSite()).toBeNull();
     expect(readStarMagnitude()).toBe(DEFAULT_MAGNITUDE);
-    expect(readMonospaceFont()).toBe("departure");
+    expect(readMonospaceFont()).toBe("menlo");
     expect(() => saveMonospaceFont("courier")).not.toThrow();
   });
 });
