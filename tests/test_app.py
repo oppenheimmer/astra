@@ -2,6 +2,7 @@ import asyncio
 import gzip
 import threading
 import tempfile
+import time
 import unittest
 from pathlib import Path
 from unittest.mock import patch
@@ -25,7 +26,7 @@ class Api(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json(), {'status': 'ok', 'hardware': 'simulation only'})
 
-    def test_satellites_merge_groups_once_per_norad_id_and_label_old_snapshots(self):
+    def test_satellites_serve_active_payloads_once_per_norad_id_and_label_old_snapshots(self):
         with patch.object(Feed, 'schedule_refresh', return_value=None) as schedule:
             response = self.client.get('/api/satellites')
         self.assertEqual(response.status_code, 200)
@@ -33,21 +34,24 @@ class Api(unittest.TestCase):
         data = response.json()
         ids = [e['NORAD_CAT_ID'] for e in data['elements']]
         self.assertEqual(len(ids), len(set(ids)))
-        expected = {e['NORAD_CAT_ID'] for e in satellites.visual.snapshot['elements']} | {
-            e['NORAD_CAT_ID'] for e in satellites.starlink.snapshot['elements']}
-        self.assertEqual(set(ids), expected)
-        self.assertEqual(data['source'], 'CelesTrak visual + Starlink groups')
-        self.assertEqual(data['fetchedAt'], satellites.visual.fetched_at)
-        self.assertEqual(data['groups'], {'visual': satellites.visual.fetched_at,
-                                          'starlink': satellites.starlink.fetched_at})
+        bundled = {e['NORAD_CAT_ID'] for e in satellites.active.snapshot['elements']}
+        non_payloads = {int(k) for k, v in satellites.catalogue.snapshot['objects'].items()
+                        if v['objectType'] != 'PAY'}
+        self.assertTrue(bundled & non_payloads, 'the bundled active group lists rocket bodies to remove')
+        self.assertEqual(set(ids), bundled - non_payloads)
+        self.assertIn(25544, ids)
+        self.assertEqual(data['source'], 'CelesTrak active group')
+        self.assertEqual(data['fetchedAt'], satellites.active.fetched_at)
+        self.assertEqual(data['groups'], {'active': satellites.active.fetched_at})
         self.assertIn('objects', data['catalogue'])
-        self.assertTrue(data['cached'], 'bundled snapshots are older than the refresh interval')
+        with patch.object(time, 'time', return_value=time.time() + 86400):
+            self.assertTrue(satellites.combined()['cached'], 'bundled snapshots age past the refresh interval')
         self.assertEqual(response.headers['cache-control'], 'public, max-age=300')
 
-    def test_visual_elements_override_starlink_duplicates(self):
-        merged = satellites.merge_elements([{'NORAD_CAT_ID': 1, 'g': 'starlink'}, {'NORAD_CAT_ID': 2}],
-                                           [{'NORAD_CAT_ID': 1, 'g': 'visual'}])
-        self.assertEqual(merged, [{'NORAD_CAT_ID': 1, 'g': 'visual'}, {'NORAD_CAT_ID': 2}])
+    def test_merged_groups_keep_one_entry_per_norad_id_with_later_groups_winning(self):
+        merged = satellites.merge_elements([{'NORAD_CAT_ID': 1, 'g': 'first'}, {'NORAD_CAT_ID': 2}],
+                                           [{'NORAD_CAT_ID': 1, 'g': 'second'}])
+        self.assertEqual(merged, [{'NORAD_CAT_ID': 1, 'g': 'second'}, {'NORAD_CAT_ID': 2}])
         for bad in [[], {}, [{'EPOCH': 'x'}], [{'NORAD_CAT_ID': 1}], [1]]:
             with self.assertRaises(ValueError):
                 satellites.valid_elements(bad)
@@ -216,8 +220,8 @@ class Api(unittest.TestCase):
             with patch.object(astra, 'DATA', Path(directory) / 'missing'), patch.object(astra, 'BUNDLED', bundled):
                 self.assertEqual(astra.snapshot('satellites.json'), bundled / 'satellites.json')
                 with self.assertRaises(FileNotFoundError):
-                    astra.snapshot('starlink.json')
-        self.assertEqual(astra.snapshot('starlink.json'), astra.DATA / 'starlink.json')
+                    astra.snapshot('active.json')
+        self.assertEqual(astra.snapshot('active.json'), astra.DATA / 'active.json')
 
     def test_frontend_is_served_only_when_built(self):
         with tempfile.TemporaryDirectory() as directory:

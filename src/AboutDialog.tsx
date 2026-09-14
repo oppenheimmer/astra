@@ -80,8 +80,9 @@ export default function AboutDialog({ fetchedAt, onClose }: Props) {
         </p>
         <h3>ORBITING EARTH</h3>
         <p>
-          <Link href="https://celestrak.org/NORAD/elements/">CelesTrak</Link> visual and Starlink
-          elements are propagated with satellite.js (SGP4). Object types, ownership and launch dates
+          <Link href="https://celestrak.org/NORAD/elements/">CelesTrak</Link> elements for active
+          satellites, excluding rocket bodies and debris, are propagated with satellite.js (SGP4).
+          Object types, ownership and launch dates
           come from the CelesTrak SATCAT where available, refreshed at most daily. Starlink craft are
           labelled as communications satellites; unknown launch dates are left blank. Specific mission
           roles link to agency or operator references; undocumented roles remain labelled as

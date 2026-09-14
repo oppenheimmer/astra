@@ -99,6 +99,13 @@ class VercelConfiguration(unittest.TestCase):
         self.assertTrue(url.startswith(f'https://{bucket}.'), f'{url} does not address the {bucket} Worker')
         self.assertTrue(url.endswith('/satellites.json'), 'the object sits at the bucket root')
 
+    def test_the_sync_keeps_only_the_source_files_the_refresh_lists(self):
+        """A glob over source/ republished retired groups on every run, so they never left storage."""
+        sync = (astra.ROOT / 'scripts/sync_satellites.sh').read_text()
+        self.assertIn('scripts/refresh_satellites.py --list-sources', sync)
+        self.assertNotIn('source/*.json', sync)
+        self.assertIn('aws s3 rm "s3://${BUCKET}/source/" --recursive "${keep[@]}"', sync)
+
     def test_the_bundle_keeps_the_backend_and_drops_the_frontend(self):
         excluded = self.config['functions']['api/index.py']['excludeFiles']
         directories = set(re.search(r'\{(.+?)\}', excluded).group(1).split(','))

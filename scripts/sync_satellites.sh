@@ -15,6 +15,11 @@
 # is what the browser reads, and source/ keeps the per-group files a later run
 # falls back on.
 #
+# Only the source files the refresh names with --list-sources are pulled and
+# published. Once they are up, every other object under source/ is deleted, so a
+# group the refresh no longer fetches stops occupying storage instead of being
+# republished forever.
+#
 # Cache-Control is set explicitly on every object. The Worker in worker/ falls
 # back to the same short policy, so an object that somehow arrives without one
 # still expires, but relying on that would hide a mistake rather than prevent it.
@@ -51,6 +56,25 @@ PYTHON="${PYTHON:-uv run python}"
 
 cd "$(dirname "$0")/.."
 WORK="build/satellites"
+
+# Taken from the refresh itself so the two cannot disagree. An empty list would
+# turn the cleanup below into "delete every source file", so it is refused.
+# shellcheck disable=SC2086
+SOURCES="$($PYTHON scripts/refresh_satellites.py --list-sources)"
+if [ -z "$SOURCES" ]; then
+    echo "The refresh listed no source files." >&2
+    exit 1
+fi
+pull=(--exclude '*')
+keep=()
+# shellcheck disable=SC2086  # one plain file name per line
+for name in $SOURCES; do
+    pull+=(--include "$name")
+    keep+=(--exclude "$name")
+done
+
+# Start from the bucket's state alone, not from files an older local run left.
+rm -rf "$WORK/source"
 mkdir -p "$WORK/source"
 
 # 30 minutes: long enough that the CDN absorbs the browser's ten-minute poll,
@@ -59,7 +83,7 @@ CACHE_CONTROL="public, max-age=1800, must-revalidate"
 s3() { aws s3 "$@" --endpoint-url "$ENDPOINT" --only-show-errors; }
 
 echo "Pulling previous state from s3://${BUCKET}/source/"
-if s3 sync "s3://${BUCKET}/source/" "$WORK/source/"; then
+if s3 sync "s3://${BUCKET}/source/" "$WORK/source/" "${pull[@]}"; then
     echo "  pulled $(find "$WORK/source" -name '*.json' | wc -l) previous file(s)"
 else
     # Reachable but empty is a first run; unreachable is not, and the refresh
@@ -73,13 +97,21 @@ echo "Refreshing from CelesTrak"
 $PYTHON scripts/refresh_satellites.py --dir "$WORK"
 
 echo "Publishing to s3://${BUCKET}/"
-for f in "$WORK/satellites.json" "$WORK"/source/*.json; do
+# shellcheck disable=SC2086
+for key in satellites.json $(printf 'source/%s ' $SOURCES); do
+    f="$WORK/$key"
     [ -e "$f" ] || continue
-    key="${f#"$WORK/"}"
     s3 cp "$f" "s3://${BUCKET}/${key}" \
         --content-type "application/json" \
         --cache-control "$CACHE_CONTROL"
     awk -v k="$key" -v b="$(wc -c < "$f")" \
         'BEGIN {printf "  %-34s %6.2f MB\n", k, b/1048576}'
 done
+
+echo "Removing unused objects from s3://${BUCKET}/source/"
+# After publishing, so a failed upload never leaves the prefix emptier than it
+# was. Called directly rather than through s3(), whose --only-show-errors would
+# hide which keys were deleted.
+removed="$(aws s3 rm "s3://${BUCKET}/source/" --recursive "${keep[@]}" --endpoint-url "$ENDPOINT")"
+printf '%s\n' "${removed:-nothing to remove}" | sed 's/^/  /'
 echo "Done."

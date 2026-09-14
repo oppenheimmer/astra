@@ -2,10 +2,11 @@
 
 CelesTrak answers 403 when the caller already holds its newest elements, so a
 partial refresh is the normal case rather than an error path, and these check
-that one quiet group never costs the others their data.
+that a quiet or unreachable upstream never costs the published payload its data.
 """
 import importlib.util
 import json
+import subprocess
 import sys
 import tempfile
 import unittest
@@ -43,7 +44,7 @@ class ConditionalFetch(unittest.TestCase):
         response = MagicMock(status_code=403, text='GP data has not updated since your last download')
         with patch.object(satellites.requests, 'get', return_value=response):
             with self.assertRaises(NotModified) as caught:
-                satellites.fetch_elements('starlink', 30)
+                satellites.fetch_elements('active', 30)
         self.assertIn('has not updated', str(caught.exception))
 
     def test_other_http_errors_are_still_failures(self):
@@ -51,7 +52,7 @@ class ConditionalFetch(unittest.TestCase):
         response.raise_for_status.side_effect = requests.HTTPError('server error')
         with patch.object(satellites.requests, 'get', return_value=response):
             with self.assertRaises(requests.HTTPError):
-                satellites.fetch_elements('visual', 20)
+                satellites.fetch_elements('active', 30)
 
     def test_a_feed_treats_not_modified_as_a_benign_no_op(self):
         import asyncio
@@ -91,34 +92,36 @@ class Refresh(unittest.TestCase):
             return refresh_satellites.build(self.dir)
 
     def test_a_quiet_group_keeps_its_previous_elements(self):
-        self.seed('starlink', group([100, 101]))
-        payload = self.build({'visual': group([1]), 'starlink': NotModified('nothing new')})
-        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1, 100, 101})
-        self.assertIn('visual', payload['groups'])
-        self.assertIn('starlink', payload['groups'])
+        self.seed('active', group([100, 101]))
+        payload = self.build({'active': NotModified('nothing new')})
+        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {100, 101})
+        self.assertIn('active', payload['groups'])
 
     def test_an_outage_keeps_the_previous_elements_too(self):
-        self.seed('starlink', group([100]))
-        payload = self.build({'visual': group([1]), 'starlink': requests.Timeout('down')})
-        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1, 100})
+        self.seed('active', group([100]))
+        payload = self.build({'active': requests.Timeout('down')})
+        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {100})
 
     def test_a_first_run_against_an_empty_prefix_uses_the_bundled_copy(self):
-        payload = self.build({'visual': group([1]), 'starlink': NotModified('nothing new')})
-        bundled = json.loads((astra.DATA / 'starlink.json').read_text())
-        self.assertGreater(len(payload['elements']), len(bundled['elements']) - 1)
-        self.assertTrue((self.dir / 'source/starlink.json').is_file(), 'the copy is written for the next run')
+        payload = self.build({'active': NotModified('nothing new')})
+        bundled = json.loads((astra.DATA / 'active.json').read_text())
+        self.assertEqual(len(payload['elements']), len(bundled['elements']))
+        self.assertTrue((self.dir / 'source/active.json').is_file(), 'the copy is written for the next run')
 
-    def test_the_visual_group_wins_a_duplicate_over_starlink(self):
-        self.seed('starlink', {'fetchedAt': 'x', 'elements': [
-            {**element(7), 'OBJECT_NAME': 'STARLINK-DUP'}]})
-        payload = self.build({'visual': {'fetchedAt': 'y', 'elements': [
-            {**element(7), 'OBJECT_NAME': 'ISS'}]},
-            'starlink': NotModified('nothing new')})
-        names = [e['OBJECT_NAME'] for e in payload['elements'] if e['NORAD_CAT_ID'] == 7]
-        self.assertEqual(names, ['ISS'])
+    def test_objects_catalogued_as_anything_but_a_payload_are_removed(self):
+        payload = self.build({'active': group([1, 2, 3, 4])}, catalogue={'objects': {
+            '1': {'objectType': 'PAY'}, '2': {'objectType': 'R/B'}, '3': {'objectType': 'DEB'}}})
+        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1, 4},
+                         'rocket bodies and debris are dropped; an uncatalogued object is kept')
+
+    def test_an_unavailable_catalogue_never_empties_the_sky(self):
+        self.seed('catalogue', {'fetchedAt': 'x', 'objects': {'1': {'objectType': 'PAY'}}})
+        payload = self.build({'active': group([1, 2, 3])}, catalogue=requests.Timeout('down'))
+        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1, 2, 3},
+                         'an older, smaller catalogue leaves objects without metadata, not missing')
 
     def test_the_payload_matches_what_the_browser_expects(self):
-        payload = self.build({'visual': group([1]), 'starlink': group([2])},
+        payload = self.build({'active': group([1, 2])},
                              catalogue={'objects': {'1': {'objectType': 'PAY'}}})
         self.assertLessEqual({'fetchedAt', 'source', 'elements', 'catalogue', 'groups'}, payload.keys())
         self.assertFalse(payload['cached'], 'a freshly built payload is not a stale fallback')
@@ -128,25 +131,35 @@ class Refresh(unittest.TestCase):
         self.assertTrue(all('EPOCH' in e for e in payload['elements']))
 
     def test_a_run_with_no_usable_data_anywhere_fails_loudly(self):
-        with patch.dict(refresh_satellites.BUNDLED, {'visual': 'missing.json', 'starlink': 'missing.json'}):
+        with patch.dict(refresh_satellites.BUNDLED, {'active': 'missing.json'}):
             with self.assertRaises(SystemExit):
-                self.build({'visual': requests.Timeout('down'), 'starlink': requests.Timeout('down')})
+                self.build({'active': requests.Timeout('down')})
 
     def test_invalid_upstream_elements_never_reach_the_payload(self):
-        self.seed('visual', group([1]))
-        self.seed('starlink', group([100]))
-        payload = self.build({'visual': {'fetchedAt': 'x', 'elements': [{'no': 'norad id'}]},
-                            'starlink': NotModified('nothing new')})
-        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1, 100})
-        saved = json.loads((self.dir / 'source/visual.json').read_text())
+        self.seed('active', group([1]))
+        payload = self.build({'active': {'fetchedAt': 'x', 'elements': [{'no': 'norad id'}]}})
+        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1})
+        saved = json.loads((self.dir / 'source/active.json').read_text())
         self.assertEqual(saved['elements'][0]['NORAD_CAT_ID'], 1)
 
     def test_saved_and_published_elements_are_normalized_before_replacing_previous_data(self):
-        payload = self.build({'visual': group(['001']), 'starlink': group([1, 2])})
-        self.assertEqual({e['NORAD_CAT_ID'] for e in payload['elements']}, {1, 2})
-        saved = json.loads((self.dir / 'source/visual.json').read_text())
+        payload = self.build({'active': group(['001', 1, 2])})
+        self.assertEqual(sorted(e['NORAD_CAT_ID'] for e in payload['elements']), [1, 2])
+        saved = json.loads((self.dir / 'source/active.json').read_text())
         self.assertEqual(saved['elements'][0]['NORAD_CAT_ID'], 1)
         self.assertTrue(saved['elements'][0]['EPOCH'].endswith('Z'))
+
+    def test_a_run_writes_exactly_the_source_files_it_lists(self):
+        """The sync publishes these and deletes every other object under source/."""
+        self.build({'active': group([1])}, catalogue={'objects': {'1': {'objectType': 'PAY'}}})
+        self.assertEqual({p.name for p in (self.dir / 'source').iterdir()},
+                         set(refresh_satellites.source_names()))
+
+    def test_the_source_file_list_is_available_to_the_sync_script(self):
+        result = subprocess.run([sys.executable, str(astra.ROOT / 'scripts/refresh_satellites.py'), '--list-sources'],
+                                capture_output=True, text=True, check=True)
+        self.assertEqual(result.stdout.split(), refresh_satellites.source_names())
+        self.assertNotIn('starlink.json', result.stdout, 'a retired group must be deleted, not kept')
 
 
 if __name__ == '__main__':

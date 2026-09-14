@@ -12,8 +12,8 @@ const REFRESH_MS = 600000;
 /**
  * Orbital elements for the chart.
  *
- * The payload arrives already merged and de-duplicated across the visual and
- * Starlink groups, so nothing is combined here. Earlier versions eagerly loaded
+ * The payload arrives already de-duplicated from the CelesTrak active group, with
+ * non-payloads removed, so nothing is combined here. Earlier versions eagerly loaded
  * the bundled snapshots from `/data/` as well; they are no longer fetched,
  * because `fetchSatellites` already falls back to the server's copy of exactly
  * those files, and skipping them saves several megabytes on first load.

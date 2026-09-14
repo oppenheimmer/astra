@@ -111,8 +111,10 @@ def valid_catalogue(objects: Any) -> dict:
 
 
 def fetch_catalogue() -> dict:
-    response = requests.get(SATCAT_URL, params={'GROUP': 'visual', 'FORMAT': 'JSON'},
-                            headers=HEADERS, timeout=20)
+    # Every object type is kept, not just payloads: `payloads_only` needs to see a
+    # rocket body's classification in order to remove its elements.
+    response = requests.get(SATCAT_URL, params={'GROUP': 'active', 'FORMAT': 'JSON'},
+                            headers=HEADERS, timeout=30)
     response.raise_for_status()
     records = response.json()
     if not isinstance(records, list) or not records or len(records) > MAX_ELEMENTS:
@@ -120,13 +122,11 @@ def fetch_catalogue() -> dict:
     return {'objects': {str(norad_id(r['NORAD_CAT_ID'])): catalogue_entry(r) for r in records}}
 
 
-visual = Feed(snapshot('satellites.json'), lambda: fetch_elements('visual', 20),
-              ELEMENT_SECONDS, 'CelesTrak visual group')
-starlink = Feed(snapshot('starlink.json'), lambda: fetch_elements('starlink', 30),
-                ELEMENT_SECONDS, 'CelesTrak Starlink group')
-catalogue = Feed(snapshot('satellite-catalogue.json'), lambda: fetch_catalogue(),
+active = Feed(snapshot('active.json'), lambda: fetch_elements('active', 30),
+              ELEMENT_SECONDS, 'CelesTrak active group')
+catalogue = Feed(snapshot('active-catalogue.json'), lambda: fetch_catalogue(),
                  CATALOGUE_SECONDS, 'CelesTrak SATCAT')
-FEEDS = (visual, starlink, catalogue)
+FEEDS = (active, catalogue)
 
 
 def merge_elements(*groups: list[dict]) -> list[dict]:
@@ -136,10 +136,24 @@ def merge_elements(*groups: list[dict]) -> list[dict]:
     return list(merged.values())
 
 
+def payloads_only(elements: list[dict], objects: dict) -> list[dict]:
+    """Drop elements that SATCAT classifies as anything other than a payload.
+
+    CelesTrak's active group occasionally lists a rocket body, so membership alone
+    is not enough. Only an explicit classification removes an object, though: one
+    missing from the catalogue (a launch SATCAT has not caught up with, or an older
+    fallback catalogue) is kept, or a single failed SATCAT download could empty the
+    sky instead of merely leaving some satellites without metadata.
+    """
+    return [e for e in elements
+            if objects.get(str(norad_id(e['NORAD_CAT_ID'])), {}).get('objectType', 'PAY') == 'PAY']
+
+
 def combined() -> dict:
-    """Every group, deduplicated, with SATCAT metadata and per-group timestamps."""
-    return {**visual.snapshot, 'source': 'CelesTrak visual + Starlink groups',
-            'elements': merge_elements(starlink.snapshot['elements'], visual.snapshot['elements']),
+    """The active group, deduplicated and without non-payloads, with SATCAT metadata."""
+    return {**active.snapshot, 'source': 'CelesTrak active group',
+            'elements': payloads_only(merge_elements(active.snapshot['elements']),
+                                      catalogue.snapshot.get('objects', {})),
             'catalogue': catalogue.snapshot,
-            'groups': {'visual': visual.fetched_at, 'starlink': starlink.fetched_at},
-            'cached': visual.stale or starlink.stale}
+            'groups': {'active': active.fetched_at},
+            'cached': active.stale}

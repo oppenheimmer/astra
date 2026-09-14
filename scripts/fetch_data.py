@@ -25,10 +25,8 @@ cb='https://raw.githubusercontent.com/ofrohn/d3-celestial/master/'
 for name in ['messier.json','constellations.lines.json','constellations.json']:
  (DATA/name).write_bytes(download(cb+'data/'+name))
 (DATA/'CELESTIAL-LICENSE.txt').write_bytes(download(cb+'LICENSE'))
-sat=json.loads(download('https://celestrak.org/NORAD/elements/gp.php?GROUP=visual&FORMAT=JSON'))
-jsave('satellites.json',{'fetchedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source':'CelesTrak visual group','elements':sat})
-starlink=json.loads(download('https://celestrak.org/NORAD/elements/gp.php?GROUP=starlink&FORMAT=JSON'))
-jsave('starlink.json',{'fetchedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source':'CelesTrak Starlink group','elements':starlink})
+sat=json.loads(download('https://celestrak.org/NORAD/elements/gp.php?GROUP=active&FORMAT=JSON'))
+jsave('active.json',{'fetchedAt':datetime.datetime.now(datetime.timezone.utc).isoformat(),'source':'CelesTrak active group','elements':sat})
 print(f'Saved {len(stars)} stars, {len(sat)} satellite elements, Messier catalogue, constellations and font.')
 print('HYG license:',(DATA/'HYG-LICENSE.txt').read_text()[:500])
 

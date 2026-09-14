@@ -5,7 +5,10 @@ import { describeSatellite } from "../src/satellite-info";
 import type { Catalogue, SatelliteData } from "../src/types";
 
 const load = (name: string) => JSON.parse(readFileSync(new URL(`../public/data/${name}`, import.meta.url), "utf8"));
-const visual: SatelliteData = load("satellites.json"), starlink: SatelliteData = load("starlink.json");
+const visual: SatelliteData = load("satellites.json"), active: SatelliteData = load("active.json");
+const starlink: SatelliteData = { ...active, elements: active.elements.filter(e => /^STARLINK-\d+$/.test(e.OBJECT_NAME)) };
+// Propagate at the snapshot's download time, so no element is past the epoch limit.
+const snapshotDate = new Date(active.fetchedAt);
 
 describe("Starlink in the default satellite catalogue", () => {
   it("merges the feeds once per NORAD ID and identifies communications payloads", () => {
@@ -19,7 +22,7 @@ describe("Starlink in the default satellite catalogue", () => {
   it("places Starlinks above the observer's horizon as ordinary satellites", () => {
     const all = prepareSatellites(starlink);
     const catalogue: Catalogue = { stars: [], messier: { features: [] }, lines: { features: [] }, constellations: { features: [] } };
-    const sky = createSky(catalogue, all, new Date("2026-09-07T12:00:00Z"), { name: "Bern", lat: 46.948, lon: 7.4474, elevation: 540 });
+    const sky = createSky(catalogue, all, snapshotDate, { name: "Bern", lat: 46.948, lon: 7.4474, elevation: 540 });
     const above = sky.objects.filter(o => o.kind === "satellite" && o.alt > 0);
     expect(above.length).toBeGreaterThan(100);
     expect(above.every(o => o.name.startsWith("STARLINK") && Number.isFinite(o.az))).toBe(true);
@@ -28,7 +31,7 @@ describe("Starlink in the default satellite catalogue", () => {
   it("retains exact look angles when the map skips unselected geographic details", () => {
     const sample = prepareSatellites(starlink).filter((_, i) => i % 1000 === 0);
     const catalogue: Catalogue = { stars: [], messier: { features: [] }, lines: { features: [] }, constellations: { features: [] } };
-    const date = new Date("2026-09-07T12:00:00.100Z"), site = { name: "Bern", lat: 46.948, lon: 7.4474, elevation: 540 };
+    const date = new Date(snapshotDate.getTime() + 100), site = { name: "Bern", lat: 46.948, lon: 7.4474, elevation: 540 };
     const fast = createSky(catalogue, sample, date, site, false);
     for (const sat of sample) {
       const exact = satellitePosition(sat, date, site), actual = fast.byId.get(sat.id);

@@ -158,11 +158,10 @@ describe("API client", () => {
     expect(parseSatelliteData({ ...payload, elements: Array(50001).fill(orbital) })).toBeNull();
   });
 
-  it("accepts the real bundled visual, Starlink and object catalogues", () => {
+  it("accepts the real bundled satellite snapshots and object catalogues", () => {
     const load = (file: string) => JSON.parse(readFileSync(new URL(`../public/data/${file}.json`, import.meta.url), "utf8"));
-    const catalogue = load("satellite-catalogue");
-    for (const file of ["satellites", "starlink"]) {
-      const payload = { ...load(file), catalogue };
+    for (const [file, catalogue] of [["satellites", "satellite-catalogue"], ["active", "active-catalogue"]]) {
+      const payload = { ...load(file), catalogue: load(catalogue) };
       const result = parseSatelliteData(payload);
       expect(result?.elements.length).toBe(payload.elements.length);
       expect(result?.elements.every((e) => e.EPOCH.endsWith("Z"))).toBe(true);

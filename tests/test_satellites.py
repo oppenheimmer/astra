@@ -53,15 +53,24 @@ class OrbitalValidation(unittest.TestCase):
         with tempfile.TemporaryDirectory() as directory:
             path = Path(directory) / 'feed.json'
             path.write_text(json.dumps(healthy))
-            feed = Feed(path, lambda: satellites.fetch_elements('visual', 20), 1, 'live')
+            feed = Feed(path, lambda: satellites.fetch_elements('active', 30), 1, 'live')
             with patch.object(satellites.requests, 'get', return_value=response):
                 self.assertFalse(asyncio.run(feed.refresh()))
             self.assertEqual(feed.snapshot, healthy)
 
     def test_bundled_snapshots_satisfy_the_stronger_schema(self):
-        for feed in (satellites.visual, satellites.starlink):
-            normalized = satellites.valid_elements(feed.snapshot['elements'])
-            self.assertEqual(len(normalized), len(feed.snapshot['elements']))
+        normalized = satellites.valid_elements(satellites.active.snapshot['elements'])
+        self.assertEqual(len(normalized), len(satellites.active.snapshot['elements']))
+
+    def test_the_catalogue_keeps_every_object_type_for_the_active_group(self):
+        response = MagicMock(status_code=200)
+        response.json.return_value = [{'NORAD_CAT_ID': 1, 'OBJECT_TYPE': 'PAY'},
+                                      {'NORAD_CAT_ID': 2, 'OBJECT_TYPE': 'R/B'}]
+        with patch.object(satellites.requests, 'get', return_value=response) as get:
+            objects = satellites.fetch_catalogue()['objects']
+        self.assertEqual(get.call_args.kwargs['params']['GROUP'], 'active')
+        self.assertEqual({k: v['objectType'] for k, v in objects.items()}, {'1': 'PAY', '2': 'R/B'},
+                         'payloads_only needs the rocket body classification in order to remove it')
 
     def test_catalogue_metadata_has_safe_defaults_and_rejects_containers(self):
         self.assertEqual(satellites.valid_catalogue({'025544': {'objectType': 'other'}}),

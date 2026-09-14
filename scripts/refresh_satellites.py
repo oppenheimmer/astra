@@ -22,23 +22,29 @@ sys.path.insert(0, str(ROOT))
 
 from astra.feeds import FETCH_ERRORS, NotModified  # noqa: E402
 from astra.satellites import (  # noqa: E402
-    fetch_catalogue, fetch_elements, merge_elements, valid_catalogue, valid_elements,
+    fetch_catalogue, fetch_elements, merge_elements, payloads_only, valid_catalogue, valid_elements,
 )
 
 # Written next to the merged payload so a later run can reuse a group whose
 # upstream is unavailable. The browser only ever reads MERGED.
 MERGED = 'satellites.json'
 SOURCES = 'source'
-GROUPS = ('visual', 'starlink')
+# Operational satellites only. Dead payloads, rocket bodies and debris are not in
+# this group, and the few rocket bodies it does list are removed by payloads_only.
+GROUPS = ('active',)
 
 # Repository copies, used only when a source has no previous run to fall back on.
 # Without these a first run against an empty prefix would silently drop any group
 # whose upstream happened to answer "no new data", publishing a partial payload.
 BUNDLED = {
-    'visual': 'satellites.json',
-    'starlink': 'starlink.json',
-    'catalogue': 'satellite-catalogue.json',
+    'active': 'active.json',
+    'catalogue': 'active-catalogue.json',
 }
+
+
+def source_names() -> list[str]:
+    """The files a run keeps under SOURCES. Anything else there is left over and safe to delete."""
+    return [f'{name}.json' for name in (*GROUPS, 'catalogue')]
 
 
 def load(path: Path):
@@ -96,8 +102,7 @@ def build(directory: Path) -> dict:
     notes, groups, elements = [], {}, []
     for group in GROUPS:
         path = sources / f'{group}.json'
-        timeout = 30 if group == 'starlink' else 20
-        payload, note = refresh(group, lambda g=group, t=timeout: fetch_elements(g, t), load(path))
+        payload, note = refresh(group, lambda g=group: fetch_elements(g, 30), load(path))
         notes.append(note)
         if not payload:
             continue
@@ -116,11 +121,12 @@ def build(directory: Path) -> dict:
     if not elements:
         raise SystemExit('No orbital elements available from any source or previous run.')
 
-    # Later groups win, so the curated visual set overrides a Starlink duplicate.
+    # Earlier entries in GROUPS win a duplicate NORAD ID.
     merged = merge_elements(*reversed(elements))
+    merged = payloads_only(merged, catalogue.get('objects', {}) if catalogue else {})
     return {
         'fetchedAt': datetime.now(timezone.utc).isoformat(),
-        'source': 'CelesTrak ' + ' + '.join(g for g in GROUPS if g in groups) + ' groups',
+        'source': 'CelesTrak ' + ' + '.join(g for g in GROUPS if g in groups) + (' groups' if len(groups) > 1 else ' group'),
         'elements': merged,
         'catalogue': {
             'fetchedAt': catalogue.get('fetchedAt', '') if catalogue else '',
@@ -136,7 +142,13 @@ def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dir', type=Path, default=ROOT / 'build/satellites',
                         help='working directory holding the previous run and receiving the new one')
-    directory = parser.parse_args().dir
+    parser.add_argument('--list-sources', action='store_true',
+                        help=f'print the file names kept under {SOURCES}/, one per line, and exit')
+    args = parser.parse_args()
+    if args.list_sources:
+        print('\n'.join(source_names()))
+        return
+    directory = args.dir
     payload = build(directory)
     target = directory / MERGED
     save(target, payload)
