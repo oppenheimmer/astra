@@ -755,7 +755,6 @@
 }
 .globe-legend button[aria-pressed="false"] {
   opacity: 0.4;
-  text-decoration: line-through;
 }
 .globe-legend svg {
   width: 12px;
