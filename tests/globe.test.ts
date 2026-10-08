@@ -13,6 +13,7 @@ import {
   inertialOrbit,
   orbitClass,
   projectGlobe,
+  sightLine,
   traceSpace,
   traceSurface,
   unitVector,
@@ -156,6 +157,25 @@ describe("Satellites on the globe", () => {
     // A single revolution closes on itself.
     const end = path.length - 3;
     expect(Math.hypot(path[0] - path[end], path[1] - path[end + 1], path[2] - path[end + 2]) * EARTH_RADIUS_KM).toBeLessThan(100);
+  });
+
+  it("draws a line of sight only above the horizon and with both ends facing the viewer", () => {
+    const above = { x: 0, y: 0, z: EARTH_RADIUS_KM + 700 };
+    const north = globeFrame({ lat: 90, lon: 0, zoom: 0.5 }, 800, 600);
+    // An observer at the pole with a satellite overhead.
+    const line = sightLine(north, { lat: 90, lon: 0 }, above, 90)!;
+    expect(line).toBeInstanceOf(Float64Array);
+    expect(Array.from(line.slice(0, 3)).map((n) => +n.toFixed(9))).toEqual([0, 0, 1]);
+    expect(line.at(-1)).toBeCloseTo((EARTH_RADIUS_KM + 700) / EARTH_RADIUS_KM);
+    expect(sightLine(north, { lat: 90, lon: 0 }, above, -5)).toBeNull();
+    // Seen from over the south pole, observer and satellite are both on the far side.
+    const south = globeFrame({ lat: -90, lon: 0, zoom: 0.5 }, 800, 600);
+    expect(sightLine(south, { lat: 90, lon: 0 }, above, 90)).toBeNull();
+    // From the equator the observer sits on the limb, still facing the viewer; the satellite beside it is visible.
+    const side = globeFrame({ lat: 0, lon: 0, zoom: 0.5 }, 800, 600);
+    expect(sightLine(side, { lat: 90, lon: 0 }, above, 90)).not.toBeNull();
+    // An observer on the far side gets no line, even with the satellite in view beyond the limb.
+    expect(sightLine(side, { lat: 0, lon: 180 }, { x: -2 * EARTH_RADIUS_KM, y: 2 * EARTH_RADIUS_KM, z: 0 }, 30)).toBeNull();
   });
 
   it("classifies orbits by regime, with stations and Starlink split out", () => {

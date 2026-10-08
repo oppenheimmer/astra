@@ -56,6 +56,8 @@ interface Options {
   radius: number;
   height: number;
   select: (object: SkyObject) => void;
+  /** Called for a click or tap on empty space, when that has a meaning. */
+  clear?: () => void;
 }
 
 /** Turn the globe by dragging, zoom with the wheel or a pinch, and pick satellites by click or tap. */
@@ -155,6 +157,7 @@ export function useGlobePointer(
       hits.current?.objects.find((o) => o.id === d.objectId) ??
       hitGlobe(hits.current, pos.x, pos.y, tolerance(e));
     if (object) p.select(object);
+    else p.clear?.();
   };
   const pointerCancel = () => {
     drag.current = null;

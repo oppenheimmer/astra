@@ -241,6 +241,14 @@ describe("Starmap desk", () => {
     expect(screen.getByText("CelesTrak")).toBeTruthy();
     expect(screen.getByRole("link", { name: /SATNOGS DB/ }).getAttribute("href")).toBe(
       `https://db.satnogs.org/satellite/${issRadio.id}`);
+    // The globe now shows the ISS alone, with its orbit; the legend gives way to the way back.
+    const focus = screen.getByRole("group", { name: "Selected satellite" });
+    expect(within(focus).getByText("ISS (ZARYA)")).toBeTruthy();
+    expect(within(focus).getByText("Orbit")).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Satellite classes" })).toBeNull();
+    fireEvent.click(within(focus).getByRole("button", { name: /SHOW ALL SATELLITES/ }));
+    expect(screen.getByRole("group", { name: "Satellite classes" })).toBeTruthy();
+    expect(screen.queryByRole("heading", { level: 2 })).toBeNull();
 
     // Anything else is found in the sky, which kept its own view.
     fireEvent.change(search, { target: { value: "Vega" } });
@@ -266,7 +274,11 @@ describe("Starmap desk", () => {
     expect(screen.getByText("Space debris")).toBeTruthy();
 
     fireEvent.click(screen.getByRole("button", { name: "GLOBE" }));
-    const legend = await screen.findByRole("group", { name: "Satellite classes" }, { timeout: 15000 });
+    // The selected fragment has the globe to itself until Escape lets go of it.
+    const focus = await screen.findByRole("group", { name: "Selected satellite" }, { timeout: 15000 });
+    expect(within(focus).getByText("FENGYUN 1C DEB")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "Escape" });
+    const legend = screen.getByRole("group", { name: "Satellite classes" });
     expect(within(legend).getByRole("button", { name: /Debris/ })).toBeTruthy();
     expect(within(legend).getByRole("button", { name: /Rocket bodies/ })).toBeTruthy();
     expect(within(legend).getByRole("button", { name: /Deep space/ }).getAttribute("aria-pressed")).toBe("true");

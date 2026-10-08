@@ -262,3 +262,24 @@ export function orbitClass(sat: Satellite): OrbitClass {
   classes.set(sat, value);
   return value;
 }
+
+/**
+ * The dashed line of sight from the observer to a satellite, sampled in Earth
+ * radii, or null when it should not be drawn: the satellite is below the
+ * observer's horizon, or either end lies on the far side of the planet.
+ */
+export function sightLine(
+  f: GlobeFrame,
+  site: { lat: number; lon: number },
+  satellite: EarthFixed,
+  altitude: number,
+  samples = 32,
+): Float64Array | null {
+  const a = unitVector(site.lat, site.lon),
+    b = [satellite.x, satellite.y, satellite.z].map((n) => n / EARTH_RADIUS_KM);
+  if (altitude < 0 || projectGlobe(f, ...a).depth < 0 || projectGlobe(f, b[0], b[1], b[2]).hidden) return null;
+  const path = new Float64Array((samples + 1) * 3);
+  for (let i = 0; i <= samples; i++)
+    for (let k = 0; k < 3; k++) path[i * 3 + k] = a[k] + ((b[k] - a[k]) * i) / samples;
+  return path;
+}

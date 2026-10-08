@@ -12,6 +12,7 @@ import {
   orbitClass,
   orbitLabels,
   projectGlobe,
+  sightLine,
   traceSpace,
   traceSurface,
   unitVector,
@@ -40,6 +41,8 @@ interface Props {
   showHighlights: boolean;
   selected: SkyObject | null;
   select: (o: SkyObject) => void;
+  /** Leave the selected satellite and show every satellite again. */
+  onClear: () => void;
 }
 type Orbit = { satellite: Satellite; time: number; path: Float64Array | null };
 
@@ -171,6 +174,8 @@ export default function GlobeMap(p: Props) {
   const orbitCache = useRef(new Map<string, Orbit>());
   const moonCache = useRef<{ hour: number; path: [number, number, number][] } | null>(null);
   const frame = globeFrame(p.camera, size.w, size.h);
+  /** A selected satellite puts the globe in focus: it alone is drawn, with its orbit and line of sight. */
+  const focus = p.layers.satellite && p.selected?.satellite && p.selected.ecf ? p.selected : null;
   const satellites = useMemo(
     () => p.sky.objects.filter((o) => o.kind === "satellite" && o.ecf && o.satellite),
     [p.sky],
@@ -182,7 +187,11 @@ export default function GlobeMap(p: Props) {
   }, [satellites]);
   const { hover, isDragging, drag, pointerDown, pointerMove, pointerUp, pointerCancel, pointerLeave } =
     useGlobePointer(
-      { camera: p.camera, setCamera: p.setCamera, radius: frame.radius, height: size.h, select: p.select },
+      {
+        camera: p.camera, setCamera: p.setCamera, radius: frame.radius, height: size.h, select: p.select,
+        // In focus, a click on empty space lets go of the satellite.
+        clear: focus ? p.onClear : undefined,
+      },
       host,
       hits,
     );
@@ -232,31 +241,37 @@ export default function GlobeMap(p: Props) {
       c.stroke();
       c.setLineDash([]);
     }
-    const selectedSatellite = p.selected?.satellite && p.selected.ecf ? p.selected : null;
-    const orbiting = p.orbits
-      ? satellites.filter(
-          (o) =>
-            o.id === selectedSatellite?.id ||
-            (p.showHighlights && orbitClass(o.satellite!) === "station" && isDocumentedMission(o.satellite!) &&
-              !hidden.has("station")),
-        )
-      : [];
+    const selectedSatellite = focus;
+    // A selected satellite takes the globe to itself: its own orbit is always drawn, and no other.
+    const orbiting = selectedSatellite
+      ? satellites.filter((o) => o.id === selectedSatellite.id)
+      : p.orbits
+        ? satellites.filter(
+            (o) =>
+              p.showHighlights && orbitClass(o.satellite!) === "station" && isDocumentedMission(o.satellite!) &&
+              !hidden.has("station"),
+          )
+        : [];
     const paths = orbiting.flatMap((o) => {
       const path = orbitOf(o.satellite!, time.getTime());
       return path ? [{ o, path: earthFixedOrbit(path, gmst) }] : [];
     });
     const strokeOrbits = (side: 1 | -1) => {
       for (const { o, path } of paths) {
+        const selected = o.id === selectedSatellite?.id;
+        // The selected orbit is a dotted path in the satellite's colour, and only where it can be seen.
+        if (selected && side === -1) continue;
         c.beginPath();
         traceSpace(c, path, f, side);
-        const selected = o.id === selectedSatellite?.id;
-        c.strokeStyle = selected ? colors.ink : inks[orbitClass(o.satellite!)];
-        c.globalAlpha = side === 1 ? (selected ? 0.9 : 0.6) : 0.3;
-        c.lineWidth = selected ? 1 : 0.8;
-        c.setLineDash(side === 1 ? [] : [2, 4]);
+        c.strokeStyle = inks[orbitClass(o.satellite!)];
+        c.globalAlpha = selected ? 1 : side === 1 ? 0.6 : 0.3;
+        c.lineWidth = selected ? 1.8 : 0.8;
+        c.lineCap = selected ? "round" : "butt";
+        c.setLineDash(selected ? [0.1, 3.6] : side === 1 ? [] : [2, 4]);
         c.stroke();
       }
       c.globalAlpha = 1;
+      c.lineCap = "butt";
       c.setLineDash([]);
     };
     strokeOrbits(-1);
@@ -294,7 +309,7 @@ export default function GlobeMap(p: Props) {
       for (let i = 0; i < n; i++) {
         const o = satellites[i],
           kind = orbitClass(o.satellite!);
-        if (hidden.has(kind)) continue;
+        if (selectedSatellite ? o.id !== selectedSatellite.id : hidden.has(kind)) continue;
         const e = o.ecf!,
           q = projectGlobe(f, e.x / EARTH_RADIUS_KM, e.y / EARTH_RADIUS_KM, e.z / EARTH_RADIUS_KM);
         if (q.hidden || q.x < -8 || q.y < -8 || q.x > size.w + 8 || q.y > size.h + 8) continue;
@@ -397,7 +412,8 @@ export default function GlobeMap(p: Props) {
       }
       const s = deepSpaceSymbol.size;
       c.beginPath();
-      deep.data.craft.forEach((craft, index) => {
+      // In focus the other spacecraft go too; the Moon and the Sun stay as references.
+      if (!selectedSatellite) deep.data.craft.forEach((craft, index) => {
         const position = craftPosition(deep.data!, index, time.getTime());
         if (!position) return;
         const distance = Math.hypot(...position),
@@ -427,17 +443,17 @@ export default function GlobeMap(p: Props) {
     const site = unitVector(p.sky.site.lat, p.sky.site.lon),
       here = projectGlobe(f, ...site);
     const selectedIndex = selectedSatellite ? satellites.findIndex((o) => o.id === selectedSatellite.id) : -1;
+    const sight = selectedSatellite && sightLine(f, p.sky.site, selectedSatellite.ecf!, selectedSatellite.alt);
+    if (sight) {
+      c.beginPath();
+      traceSpace(c, sight, f, 1);
+      c.strokeStyle = colors.ink;
+      c.lineWidth = 1.3;
+      c.setLineDash([5, 4]);
+      c.stroke();
+      c.setLineDash([]);
+    }
     if (here.depth >= 0) {
-      if (selectedIndex >= 0 && selectedSatellite!.alt >= 0 && Number.isFinite(xs[selectedIndex])) {
-        c.beginPath();
-        c.moveTo(here.x, here.y);
-        c.lineTo(xs[selectedIndex], ys[selectedIndex]);
-        c.strokeStyle = colors.ink;
-        c.lineWidth = 0.8;
-        c.setLineDash([2, 3]);
-        c.stroke();
-        c.setLineDash([]);
-      }
       c.beginPath();
       c.arc(here.x, here.y, 4.5, 0, Math.PI * 2);
       c.moveTo(here.x - 8, here.y);
@@ -511,7 +527,7 @@ export default function GlobeMap(p: Props) {
       candidates.push({ label: p.sky.site.name.toUpperCase(), x: here.x, y: here.y, selected: false, site: true });
     for (const label of deepLabels) candidates.push({ ...label, selected: false });
     // A small, distant globe has no room for standing labels; they would hide the planet.
-    if (p.showHighlights && f.radius >= 140)
+    if (!selectedSatellite && p.showHighlights && f.radius >= 140)
       satellites.forEach((o, i) => {
         if (i !== selectedIndex && Number.isFinite(xs[i]) && isDocumentedMission(o.satellite!))
           candidates.push({ label: o.name, x: xs[i], y: ys[i], selected: false });
@@ -567,6 +583,8 @@ export default function GlobeMap(p: Props) {
 
   const hovered = hover?.object,
     hoveredCraft = hover?.craft;
+  const focusKind = focus && orbitClass(focus.satellite!);
+  const sight = !focus ? null : focus.alt < 0 ? "below" : sightLine(frame, p.sky.site, focus.ecf!, focus.alt) ? "drawn" : "hidden";
   const deepCount = deep.data
     ? deep.data.craft.filter((_, i) => craftPosition(deep.data!, i, p.sky.time.getTime())).length
     : 0;
@@ -626,6 +644,37 @@ export default function GlobeMap(p: Props) {
           </div>
         )}
       </div>
+      {focus && focusKind ? (
+        <div className="globe-legend globe-focus" role="group" aria-label="Selected satellite">
+          <div className="focus-name">
+            <SymbolSwatch shape={satelliteSymbols[focusKind].shape} color={inks[focusKind]} />
+            <span>{focus.name}</span>
+          </div>
+          <div className="focus-key">
+            <svg viewBox="0 0 24 6" aria-hidden="true">
+              <path d="M2 3H22" stroke={inks[focusKind]} strokeWidth="1.8" strokeLinecap="round" strokeDasharray="0.1 3.6" />
+            </svg>
+            <span>Orbit</span>
+          </div>
+          <div className="focus-key">
+            {sight === "drawn" ? (
+              <>
+                <svg viewBox="0 0 24 6" aria-hidden="true">
+                  <path d="M1 3H23" stroke={colors.ink} strokeWidth="1.3" strokeDasharray="5 4" />
+                </svg>
+                <span>Line of sight from {p.sky.site.name}</span>
+              </>
+            ) : (
+              <span>
+                {sight === "below"
+                  ? "Below your horizon: no line of sight"
+                  : "Above your horizon, on the far side of Earth from this view"}
+              </span>
+            )}
+          </div>
+          <button onClick={p.onClear}>SHOW ALL SATELLITES ✕</button>
+        </div>
+      ) : (
       <div className="globe-legend" role="group" aria-label="Satellite classes">
         {p.layers.satellite &&
           ORBIT_CLASSES.filter((kind) => !INACTIVE_CLASSES.has(kind) || counts[kind] > 0).map((kind) => (
@@ -653,6 +702,7 @@ export default function GlobeMap(p: Props) {
           <span className="count">{deep.error && !deep.data ? "—" : deepCount}</span>
         </button>
       </div>
+      )}
     </>
   );
 }

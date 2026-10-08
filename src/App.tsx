@@ -202,6 +202,7 @@ export default function App() {
     escape: () => {
       setAiming(false);
       setSearchOpen(false);
+      if (globe && selected?.satellite) clearSelection();
     },
   });
   useDialogFocus(siteOpen || about, () => {
@@ -238,6 +239,10 @@ export default function App() {
             fov: o.star?.source ? Math.min(v.fov, deepFieldLimit(starMagnitude)) : Math.max(minField, v.fov),
           },
     );
+  }
+  function clearSelection() {
+    setSelectedId(null);
+    setPinnedStar(null);
   }
   /** Turn the globe to put a satellite in the middle, at the current zoom. */
   function centreGlobe(o: SkyObject) {
@@ -655,6 +660,7 @@ export default function App() {
                 showHighlights={highlight}
                 selected={selected}
                 select={(o) => select(o)}
+                onClear={clearSelection}
               />
               </DeferredPanel>
             ) : sky ? (
