@@ -20,7 +20,7 @@ import {
 import { globeCoastlines } from "./globe-coastlines";
 import { clamp } from "./projection";
 import { isDocumentedMission } from "./satellite-info";
-import { satelliteSymbols, skyPalette, type SatelliteShape, type Theme } from "./theme";
+import { globePalette, satelliteSymbols, skyPalette, type SatelliteShape, type Theme } from "./theme";
 import type { Layers, Satellite, Sky, SkyObject } from "./types";
 import { useGlobePointer, type GlobeHits } from "./useGlobePointer";
 
@@ -62,7 +62,7 @@ function addSymbol(c: CanvasRenderingContext2D, shape: SatelliteShape, x: number
     c.lineTo(x + h, y + h * 0.75);
     c.lineTo(x - h, y + h * 0.75);
     c.closePath();
-  } else c.rect(x - h * 0.75, y - h * 0.75, h * 1.5, h * 1.5);
+  } else c.rect(x - h, y - h, s, s);
 }
 
 /** The station symbol's square brackets, as on the sky chart. */
@@ -101,7 +101,8 @@ export function SymbolSwatch({ kind, color }: { kind: OrbitClass; color: string 
 
 /** Satellites around a wireframe Earth, seen from space with north up. */
 export default function GlobeMap(p: Props) {
-  const colors = skyPalette[p.theme];
+  const colors = skyPalette[p.theme],
+    inks = globePalette[p.theme];
   const host = useRef<HTMLDivElement>(null),
     canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 800, h: 700 });
@@ -188,7 +189,7 @@ export default function GlobeMap(p: Props) {
         c.beginPath();
         traceSpace(c, path, f, side);
         const selected = o.id === selectedSatellite?.id;
-        c.strokeStyle = selected ? colors.ink : colors[satelliteSymbols[orbitClass(o.satellite!)].color];
+        c.strokeStyle = selected ? colors.ink : inks[orbitClass(o.satellite!)];
         c.globalAlpha = side === 1 ? (selected ? 0.9 : 0.6) : 0.3;
         c.lineWidth = selected ? 1 : 0.8;
         c.setLineDash(side === 1 ? [] : [2, 4]);
@@ -218,7 +219,7 @@ export default function GlobeMap(p: Props) {
     }
     c.beginPath();
     for (const ring of globeCoastlines()) traceSurface(c, ring, f, 1);
-    c.strokeStyle = colors.dim;
+    c.strokeStyle = inks.coast;
     c.lineWidth = 0.8;
     c.stroke();
     strokeOrbits(1);
@@ -244,32 +245,36 @@ export default function GlobeMap(p: Props) {
         groups.set(key, group);
       }
     hits.current = { objects: satellites, xs, ys };
-    const scale = clamp(0.8 + p.camera.zoom * 0.3, 0.85, 1.7);
+    const scale = clamp(0.9 + p.camera.zoom * 0.3, 1, 1.8);
+    /** Paint the current path: first a knockout in the page colour, then the symbol over it. */
+    const paint = (color: string, stroked: boolean) => {
+      c.strokeStyle = inks.halo;
+      c.lineWidth = stroked ? 3.2 : 1.6;
+      c.stroke();
+      if (stroked) {
+        c.strokeStyle = color;
+        c.lineWidth = 1.3;
+        c.stroke();
+      } else {
+        c.fillStyle = color;
+        c.fill();
+      }
+    };
     for (const kind of [...ORBIT_CLASSES].reverse())
       for (const lit of [0, 1]) {
         const group = groups.get(`${kind}:${lit}`);
         if (!group) continue;
         const symbol = satelliteSymbols[kind],
-          color = colors[symbol.color],
           s = symbol.size * scale;
-        // Satellites in Earth's shadow keep their colour but fade, as on the chart.
-        c.globalAlpha = lit ? 1 : 0.45;
+        // Satellites in Earth's shadow keep their colour and shape but fade a little, as on the chart.
+        c.globalAlpha = lit ? 1 : 0.6;
         c.beginPath();
         for (const i of group) addSymbol(c, symbol.shape, xs[i], ys[i], s);
-        if (symbol.shape === "ring" || symbol.shape === "cross") {
-          c.strokeStyle = color;
-          c.lineWidth = 1;
-          c.stroke();
-        } else {
-          c.fillStyle = color;
-          c.fill();
-        }
+        paint(inks[kind], symbol.shape === "ring" || symbol.shape === "cross");
         if (symbol.shape === "station") {
           c.beginPath();
           for (const i of group) addBrackets(c, xs[i], ys[i], 3 + s);
-          c.strokeStyle = color;
-          c.lineWidth = 1;
-          c.stroke();
+          paint(inks[kind], true);
         }
       }
     c.globalAlpha = 1;
@@ -412,7 +417,7 @@ export default function GlobeMap(p: Props) {
               title={`${hidden.has(kind) ? "Show" : "Hide"} ${orbitLabels[kind].toLowerCase()}`}
               onClick={() => toggle(kind)}
             >
-              <SymbolSwatch kind={kind} color={colors[satelliteSymbols[kind].color]} />
+              <SymbolSwatch kind={kind} color={inks[kind]} />
               <span>{orbitLabels[kind]}</span>
               <span className="count">{counts[kind].toLocaleString("en-GB")}</span>
             </button>
