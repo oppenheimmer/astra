@@ -77,7 +77,7 @@ class Refresh(unittest.TestCase):
     def seed(self, name, payload):
         (self.dir / 'source' / f'{name}.json').write_text(json.dumps(payload))
 
-    def build(self, elements=None, catalogue=None, radio=None):
+    def build(self, elements=None, catalogue=None, radio=None, run=False):
         def fetch_elements(g, _timeout):
             result = (elements or {}).get(g)
             if isinstance(result, Exception):
@@ -94,7 +94,7 @@ class Refresh(unittest.TestCase):
         with patch.object(refresh_satellites, 'fetch_elements', fetch_elements), \
              patch.object(refresh_satellites, 'fetch_catalogue', fetch_catalogue), \
              patch.object(refresh_satellites, 'fetch_satnogs', fetch_satnogs):
-            return refresh_satellites.build(self.dir)
+            return (refresh_satellites.run if run else refresh_satellites.build)(self.dir)
 
     def test_a_quiet_group_keeps_its_previous_elements(self):
         self.seed('active', group([100, 101]))
@@ -156,9 +156,18 @@ class Refresh(unittest.TestCase):
 
     def test_a_run_writes_exactly_the_source_files_it_lists(self):
         """The sync publishes these and deletes every other object under source/."""
-        self.build({'active': group([1])}, catalogue={'objects': {'1': {'objectType': 'PAY'}}})
+        from astra import deep_space
+        sampled = {'start': '2026-09-09T00:00:00Z', 'step': 3600000, 'count': 2,
+                   'craft': [{'id': '-170', 'name': 'James Webb', 'region': 'L2', 'positions': [1, 2, 3, 4, 5, 6]}]}
+        groups = {g: group([1000 + i]) for i, g in enumerate(refresh_satellites.DEBRIS_GROUPS)}
+        with patch.object(refresh_satellites, 'fetch_spacetrack', lambda: {'elements': group([2000])['elements'],
+                                                                             'objects': {}}), \
+             patch.object(refresh_satellites, 'fetch_deep_space', lambda: deep_space.valid(sampled)):
+            self.build({'active': group([1]), **groups}, catalogue={'objects': {'1': {'objectType': 'PAY'}}},
+                       run=True)
         self.assertEqual({p.name for p in (self.dir / 'source').iterdir()},
                          set(refresh_satellites.source_names()))
+        self.assertEqual({p.name for p in self.dir.iterdir() if p.is_file()}, set(refresh_satellites.OUTPUTS))
 
     def test_the_source_file_list_is_available_to_the_sync_script(self):
         result = subprocess.run([sys.executable, str(astra.ROOT / 'scripts/refresh_satellites.py'), '--list-sources'],

@@ -12,8 +12,8 @@
 # a partial refresh safe.
 #
 # The bucket holds nothing else, so the objects sit at its root: satellites.json
-# is what the browser reads, and source/ keeps the per-group files a later run
-# falls back on.
+# is what the browser reads, inactive.json and deep-space.json are the optional
+# layers beside it, and source/ keeps the per-group files a later run falls back on.
 #
 # Only the source files the refresh names with --list-sources are pulled and
 # published. Once they are up, every other object under source/ is deleted, so a
@@ -92,13 +92,14 @@ else
     exit 1
 fi
 
-echo "Refreshing from CelesTrak and SatNOGS DB"
+echo "Refreshing from CelesTrak, SatNOGS DB, Space-Track and JPL Horizons"
 # shellcheck disable=SC2086
 $PYTHON scripts/refresh_satellites.py --dir "$WORK"
 
 echo "Publishing to s3://${BUCKET}/"
 # shellcheck disable=SC2086
-for key in satellites.json $(printf 'source/%s ' $SOURCES); do
+OUTPUTS="$($PYTHON scripts/refresh_satellites.py --list-outputs)"
+for key in $OUTPUTS $(printf 'source/%s ' $SOURCES); do
     f="$WORK/$key"
     [ -e "$f" ] || continue
     s3 cp "$f" "s3://${BUCKET}/${key}" \

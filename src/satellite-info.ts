@@ -103,6 +103,12 @@ export function describeSatellite(satellite: Satellite): Mission {
     };
   const mission = missions[String(satellite.elements.NORAD_CAT_ID)];
   if (mission) return mission;
+  if (satellite.inactive)
+    return {
+      label: "Inactive satellite",
+      fact: "A spacecraft outside CelesTrak’s list of active satellites. Most such objects no longer operate, though a few are newly launched or simply unlisted.",
+      source: satelliteCatalogueSource,
+    };
   if (/^STARLINK-\d+$/.test(satellite.name))
     return {
       label: "Communications satellite / Starlink",

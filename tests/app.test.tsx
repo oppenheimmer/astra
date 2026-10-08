@@ -5,7 +5,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor, within } from "@testi
 import { afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 import App from "../src/App";
 import { STORAGE_KEYS } from "../src/preferences";
-import { SATELLITE_DATA_URL } from "../src/api";
+import { INACTIVE_DATA_URL, SATELLITE_DATA_URL } from "../src/api";
 import { monospaceFamily } from "../src/fonts";
 import { SATELLITE_MAX_DAYS } from "../src/sky";
 
@@ -43,9 +43,24 @@ const published = () => {
  * exercised the moment `offline.snapshot` is cleared.
  */
 const offline = { snapshot: true };
+/** The optional layer: a debris fragment and a rocket body, sharing the visual group's epochs. */
+const inactiveLayer = () => {
+  const visual = bundled["satellites.json"] as { fetchedAt: string; elements: Record<string, unknown>[] };
+  const entry = (objectType: string) => ({ objectType, owner: "", launchDate: "", internationalId: "" });
+  return {
+    fetchedAt: visual.fetchedAt,
+    source: "CelesTrak debris groups",
+    elements: [
+      { ...visual.elements[0], NORAD_CAT_ID: 29001, OBJECT_NAME: "FENGYUN 1C DEB" },
+      { ...visual.elements[1], NORAD_CAT_ID: 29002, OBJECT_NAME: "SL-8 R/B" },
+    ],
+    catalogue: { fetchedAt: visual.fetchedAt, source: "CelesTrak debris groups", objects: { "29001": entry("DEB"), "29002": entry("R/B") } },
+  };
+};
 function offlineFetch(url: string) {
   if (url === SATELLITE_DATA_URL)
     return Promise.resolve(offline.snapshot ? respond(200, published()) : respond(503, { detail: OFFLINE }));
+  if (url === INACTIVE_DATA_URL) return Promise.resolve(respond(200, inactiveLayer()));
   const file = url.match(/^\/data\/(.+)$/)?.[1];
   if (file) return Promise.resolve(file in bundled ? respond(200, bundled[file]) : respond(404, { detail: "Not found" }));
   return Promise.resolve(respond(503, { detail: OFFLINE }));
@@ -234,6 +249,30 @@ describe("Starmap desk", () => {
     await waitFor(() => expect(heading()).toBe("Vega"));
     expect(screen.queryByText("EARTH ORBIT")).toBeNull();
     expect(screen.getByRole("button", { name: "GLOBE" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
+  it("adds debris and inactive objects only when switched on", async () => {
+    await mount();
+    const hide = screen.getByRole("button", { name: "HIDE" });
+    expect(hide.getAttribute("aria-pressed")).toBe("true");
+    expect(fetch).not.toHaveBeenCalledWith(INACTIVE_DATA_URL, expect.anything());
+    fireEvent.click(screen.getByRole("button", { name: "SHOW" }));
+    expect(await screen.findByText(/2 more tracked objects: debris, rocket bodies and inactive satellites/)).toBeTruthy();
+    expect(fetch).toHaveBeenCalledWith(INACTIVE_DATA_URL, expect.anything());
+    const search = screen.getByLabelText("Search sky objects");
+    fireEvent.change(search, { target: { value: "FENGYUN 1C DEB" } });
+    fireEvent.click(await screen.findByRole("button", { name: /FENGYUN 1C DEB/ }));
+    await waitFor(() => expect(heading()).toBe("FENGYUN 1C DEB"));
+    expect(screen.getByText("Space debris")).toBeTruthy();
+
+    fireEvent.click(screen.getByRole("button", { name: "GLOBE" }));
+    const legend = await screen.findByRole("group", { name: "Satellite classes" }, { timeout: 15000 });
+    expect(within(legend).getByRole("button", { name: /Debris/ })).toBeTruthy();
+    expect(within(legend).getByRole("button", { name: /Rocket bodies/ })).toBeTruthy();
+    expect(within(legend).getByRole("button", { name: /Deep space/ }).getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(hide);
+    await waitFor(() => expect(within(legend).queryByRole("button", { name: /Debris/ })).toBeNull());
+    expect(screen.queryByText(/more tracked objects/)).toBeNull();
   });
 
   it("applies a preset location, saves it, and follows its time zone", async () => {

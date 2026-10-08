@@ -2,11 +2,34 @@ import { useEffect, useRef, useState, type Dispatch, type PointerEvent, type Ref
 import { dragCamera, zoomCamera, type GlobeCamera } from "./globe";
 import type { SkyObject } from "./types";
 
+/** A deep-space craft as drawn: hover shows it, but it is not a selectable sky object. */
+export interface CraftHit {
+  name: string;
+  region: string;
+  /** Kilometres from Earth's centre. */
+  distance: number;
+  x: number;
+  y: number;
+}
 /** Where each satellite was last drawn, in CSS pixels; NaN when it was not drawn. */
 export interface GlobeHits {
   objects: SkyObject[];
   xs: Float32Array;
   ys: Float32Array;
+  craft?: CraftHit[];
+}
+/** The nearest drawn deep-space craft within `tolerance` pixels. */
+export function hitCraft(hits: GlobeHits | null, x: number, y: number, tolerance: number) {
+  let best: CraftHit | null = null,
+    distance = tolerance;
+  for (const craft of hits?.craft ?? []) {
+    const d = Math.hypot(craft.x - x, craft.y - y);
+    if (d < distance) {
+      distance = d;
+      best = craft;
+    }
+  }
+  return best;
 }
 /** The nearest drawn satellite within `tolerance` pixels. */
 export function hitGlobe(hits: GlobeHits | null, x: number, y: number, tolerance: number) {
@@ -41,7 +64,7 @@ export function useGlobePointer(
   host: RefObject<HTMLDivElement | null>,
   hits: RefObject<GlobeHits | null>,
 ) {
-  const [hover, setHover] = useState<{ object: SkyObject; x: number; y: number } | null>(null);
+  const [hover, setHover] = useState<{ object?: SkyObject; craft?: CraftHit; x: number; y: number } | null>(null);
   const [isDragging, setDragging] = useState(false);
   const drag = useRef<{
     x: number;
@@ -114,7 +137,8 @@ export function useGlobePointer(
       return;
     }
     const nearest = hitGlobe(hits.current, pos.x, pos.y, tolerance(e));
-    setHover(nearest ? { object: nearest, x: pos.x, y: pos.y } : null);
+    const craft = nearest ? null : hitCraft(hits.current, pos.x, pos.y, tolerance(e));
+    setHover(nearest ? { object: nearest, ...pos } : craft ? { craft, ...pos } : null);
   };
   const pointerUp = (e: PointerEvent) => {
     const pos = position(e),

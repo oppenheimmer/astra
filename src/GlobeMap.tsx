@@ -6,6 +6,7 @@ import {
   globeFrame,
   globeGraticule,
   heightAbove,
+  INACTIVE_CLASSES,
   inertialOrbit,
   ORBIT_CLASSES,
   orbitClass,
@@ -17,12 +18,14 @@ import {
   type GlobeCamera,
   type OrbitClass,
 } from "./globe";
+import { fetchDeepSpace } from "./api";
+import { AU_KM, craftPosition, earthFixedAt, moonOrbit, moonPosition, NEAR_SPACE_KM, sunPosition } from "./deep-space";
 import { globeCoastlines } from "./globe-coastlines";
 import { clamp } from "./projection";
 import { isDocumentedMission } from "./satellite-info";
-import { globePalette, satelliteSymbols, skyPalette, type SatelliteShape, type Theme } from "./theme";
-import type { Layers, Satellite, Sky, SkyObject } from "./types";
-import { useGlobePointer, type GlobeHits } from "./useGlobePointer";
+import { deepSpaceSymbol, globePalette, satelliteSymbols, skyPalette, type SatelliteShape, type Theme } from "./theme";
+import type { DeepSpaceData, Layers, Satellite, Sky, SkyObject } from "./types";
+import { useGlobePointer, type CraftHit, type GlobeHits } from "./useGlobePointer";
 
 interface Props {
   theme: Theme;
@@ -57,12 +60,59 @@ function addSymbol(c: CanvasRenderingContext2D, shape: SatelliteShape, x: number
     c.lineTo(x + h, y + h);
     c.moveTo(x + h, y - h);
     c.lineTo(x - h, y + h);
+  } else if (shape === "plus") {
+    c.moveTo(x - h, y);
+    c.lineTo(x + h, y);
+    c.moveTo(x, y - h);
+    c.lineTo(x, y + h);
+  } else if (shape === "target") {
+    c.moveTo(x + h, y);
+    c.arc(x, y, h, 0, Math.PI * 2);
+    c.moveTo(x + 1.3, y);
+    c.arc(x, y, 1.3, 0, Math.PI * 2);
   } else if (shape === "triangle") {
     c.moveTo(x, y - h);
     c.lineTo(x + h, y + h * 0.75);
     c.lineTo(x - h, y + h * 0.75);
     c.closePath();
   } else c.rect(x - h, y - h, s, s);
+}
+
+/** Shapes drawn as outlines rather than fills. */
+const STROKED: ReadonlySet<SatelliteShape> = new Set(["ring", "cross", "plus", "box", "target"]);
+
+/** Distance from Earth, in kilometres near the planet and astronomical units far from it. */
+const distanceLabel = (km: number) =>
+  km < 1e7 ? `${(km / 1e6).toFixed(2)} MILLION KM` : `${(km / AU_KM).toFixed(km < 10 * AU_KM ? 2 : 1)} AU`;
+
+/** Horizons positions, fetched once per page and shared by every globe mounted after. */
+let deepSpaceCache: DeepSpaceData | null = null;
+const DEEP_SPACE_REFRESH_MS = 6 * 3600000;
+function useDeepSpace(enabled: boolean) {
+  const [data, setData] = useState(deepSpaceCache);
+  const [error, setError] = useState("");
+  useEffect(() => {
+    if (!enabled) return;
+    const controller = new AbortController();
+    const load = () =>
+      fetchDeepSpace(controller.signal)
+        .then((value) => {
+          deepSpaceCache = value;
+          setData(value);
+          setError("");
+        })
+        .catch((reason) => {
+          if (!controller.signal.aborted)
+            setError(reason instanceof Error ? reason.message : "Deep-space positions unavailable.");
+        });
+    if (!deepSpaceCache || Date.now() - Date.parse(deepSpaceCache.fetchedAt) > DEEP_SPACE_REFRESH_MS) void load();
+    const timer = setInterval(load, DEEP_SPACE_REFRESH_MS);
+    return () => {
+      controller.abort();
+      clearInterval(timer);
+    };
+  }, [enabled]);
+  return { data, error };
 }
 
 /** The station symbol's square brackets, as on the sky chart. */
@@ -78,9 +128,8 @@ function addBrackets(c: CanvasRenderingContext2D, x: number, y: number, n: numbe
 }
 
 /** A legend swatch drawn with the same geometry as the canvas symbol. */
-export function SymbolSwatch({ kind, color }: { kind: OrbitClass; color: string }) {
-  const { shape } = satelliteSymbols[kind];
-  const fill = shape === "ring" || shape === "cross" ? "none" : color;
+export function SymbolSwatch({ shape, color }: { shape: SatelliteShape; color: string }) {
+  const fill = STROKED.has(shape) ? "none" : color;
   return (
     <svg viewBox="-6 -6 12 12" aria-hidden="true">
       {shape === "dot" && <circle r="1.6" fill={fill} />}
@@ -89,6 +138,14 @@ export function SymbolSwatch({ kind, color }: { kind: OrbitClass; color: string 
       {shape === "diamond" && <path d="M0 -3L3 0L0 3L-3 0Z" fill={fill} />}
       {shape === "triangle" && <path d="M0 -3L3 2.25L-3 2.25Z" fill={fill} />}
       {shape === "cross" && <path d="M-2.6 -2.6L2.6 2.6M2.6 -2.6L-2.6 2.6" stroke={color} strokeWidth="1.1" />}
+      {shape === "plus" && <path d="M-3 0H3M0 -3V3" stroke={color} strokeWidth="1.1" />}
+      {shape === "box" && <rect x="-2.2" y="-2.2" width="4.4" height="4.4" fill="none" stroke={color} strokeWidth="1" />}
+      {shape === "target" && (
+        <>
+          <circle r="3.6" fill="none" stroke={color} strokeWidth="1" />
+          <circle r="1.1" fill={color} />
+        </>
+      )}
       {shape === "station" && (
         <>
           <rect x="-1.4" y="-1.4" width="2.8" height="2.8" fill={fill} />
@@ -107,8 +164,12 @@ export default function GlobeMap(p: Props) {
     canvas = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 800, h: 700 });
   const [hidden, setHidden] = useState<ReadonlySet<OrbitClass>>(new Set());
+  // Spacecraft beyond Earth orbit are on by default; zooming out brings them into view.
+  const [deepSpace, setDeepSpace] = useState(true);
+  const deep = useDeepSpace(deepSpace);
   const hits = useRef<GlobeHits | null>(null);
   const orbitCache = useRef(new Map<string, Orbit>());
+  const moonCache = useRef<{ hour: number; path: [number, number, number][] } | null>(null);
   const frame = globeFrame(p.camera, size.w, size.h);
   const satellites = useMemo(
     () => p.sky.objects.filter((o) => o.kind === "satellite" && o.ecf && o.satellite),
@@ -244,7 +305,6 @@ export default function GlobeMap(p: Props) {
         group.push(i);
         groups.set(key, group);
       }
-    hits.current = { objects: satellites, xs, ys };
     const scale = clamp(0.9 + p.camera.zoom * 0.3, 1, 1.8);
     /** Paint the current path: first a knockout in the page colour, then the symbol over it. */
     const paint = (color: string, stroked: boolean) => {
@@ -270,7 +330,7 @@ export default function GlobeMap(p: Props) {
         c.globalAlpha = lit ? 1 : 0.6;
         c.beginPath();
         for (const i of group) addSymbol(c, symbol.shape, xs[i], ys[i], s);
-        paint(inks[kind], symbol.shape === "ring" || symbol.shape === "cross");
+        paint(inks[kind], STROKED.has(symbol.shape));
         if (symbol.shape === "station") {
           c.beginPath();
           for (const i of group) addBrackets(c, xs[i], ys[i], 3 + s);
@@ -278,6 +338,90 @@ export default function GlobeMap(p: Props) {
         }
       }
     c.globalAlpha = 1;
+
+    // Far out the planet shrinks below its own outline; a dot keeps it findable among the satellites.
+    if (f.radius < 3) {
+      c.beginPath();
+      c.arc(f.cx, f.cy, 2.5, 0, Math.PI * 2);
+      c.fillStyle = colors.rim;
+      c.fill();
+    }
+
+    // Beyond Earth orbit: the Moon for scale, craft at the Lagrange points to scale, and
+    // farther craft and the Sun as direction markers at the chart's edge.
+    const fieldKm = (2 * EARTH_RADIUS_KM) / p.camera.zoom;
+    const craftHits: CraftHit[] = [];
+    const deepLabels: { label: string; x: number; y: number }[] = [];
+    const edges: { label: string; x: number; y: number; dx: number; dy: number; craft?: CraftHit }[] = [];
+    const toScreen = ([x, y, z]: [number, number, number]) =>
+      projectGlobe(f, x / EARTH_RADIUS_KM, y / EARTH_RADIUS_KM, z / EARTH_RADIUS_KM);
+    const onCanvas = (q: { x: number; y: number }) => q.x >= 0 && q.y >= 0 && q.x <= size.w && q.y <= size.h;
+    /** Where a direction leaves the chart, inset clear of the controls along its edges. */
+    const edgePoint = ([x, y, z]: [number, number, number]) => {
+      const dx = x * f.right[0] + y * f.right[1] + z * f.right[2],
+        dy = -(x * f.up[0] + y * f.up[1] + z * f.up[2]),
+        length = Math.hypot(dx, dy) || 1;
+      const ux = dx / length,
+        uy = dy / length;
+      const reach = Math.min(
+        ux > 0 ? (size.w - 48 - f.cx) / ux : ux < 0 ? (16 - f.cx) / ux : Infinity,
+        uy > 0 ? (size.h - 40 - f.cy) / uy : uy < 0 ? (64 - f.cy) / uy : Infinity,
+      );
+      return { x: f.cx + ux * reach, y: f.cy + uy * reach, dx: ux, dy: uy };
+    };
+    if (deepSpace && deep.data) {
+      const toFixed = earthFixedAt(time);
+      if (fieldKm > 150000) {
+        const hour = Math.floor(time.getTime() / 3600000);
+        if (moonCache.current?.hour !== hour) moonCache.current = { hour, path: moonOrbit(time.getTime()) };
+        const orbit = new Float64Array(moonCache.current.path.flatMap((v) => toFixed(v).map((n) => n / EARTH_RADIUS_KM)));
+        c.beginPath();
+        traceSpace(c, orbit, f, 1);
+        c.strokeStyle = colors.constellation;
+        c.lineWidth = 0.8;
+        c.setLineDash([3, 4]);
+        c.stroke();
+        c.setLineDash([]);
+        const moon = toScreen(toFixed(moonPosition(time)));
+        if (!moon.hidden && onCanvas(moon)) {
+          c.beginPath();
+          c.arc(moon.x, moon.y, Math.max(3, (1737.4 / EARTH_RADIUS_KM) * f.radius), 0, Math.PI * 2);
+          c.fillStyle = colors.moon;
+          c.fill();
+          deepLabels.push({ label: "MOON", x: moon.x, y: moon.y });
+        }
+      }
+      if (fieldKm > 400000) {
+        const sun = edgePoint(toFixed(sunPosition(time)));
+        edges.push({ label: "☼ SUN", ...sun });
+      }
+      const s = deepSpaceSymbol.size;
+      c.beginPath();
+      deep.data.craft.forEach((craft, index) => {
+        const position = craftPosition(deep.data!, index, time.getTime());
+        if (!position) return;
+        const distance = Math.hypot(...position),
+          fixed = toFixed(position);
+        if (distance < NEAR_SPACE_KM) {
+          const q = toScreen(fixed);
+          if (q.hidden || !onCanvas(q)) return;
+          addSymbol(c, deepSpaceSymbol.shape, q.x, q.y, s);
+          craftHits.push({ name: craft.name, region: craft.region, distance, x: q.x, y: q.y });
+          deepLabels.push({ label: craft.name, x: q.x, y: q.y });
+        } else if (fieldKm > 400000) {
+          const edge = edgePoint(fixed);
+          const hit = { name: craft.name, region: craft.region, distance, x: edge.x, y: edge.y };
+          edges.push({ label: `${craft.name} · ${distanceLabel(distance)}`, ...edge, craft: hit });
+        }
+      });
+      c.strokeStyle = inks.halo;
+      c.lineWidth = 3.2;
+      c.stroke();
+      c.strokeStyle = inks.deep;
+      c.lineWidth = 1.3;
+      c.stroke();
+    }
+    hits.current = { objects: satellites, xs, ys, craft: craftHits };
 
     // The observer, and a line of sight to the selected satellite when it is above their horizon.
     const site = unitVector(p.sky.site.lat, p.sky.site.lon),
@@ -305,13 +449,67 @@ export default function GlobeMap(p: Props) {
       c.stroke();
     }
 
-    // Labels: the selected satellite first, then documented missions where they fit.
+    // Edge markers first, so in-chart labels give way to them: an arrow pointing out, its label inside.
+    // Both keep clear of the controls laid over the chart; a marker with no room is left out.
     const boxes: { x: number; y: number; w: number; h: number }[] = [];
+    const origin = host.current?.getBoundingClientRect();
+    const overlays = host.current
+      ?.closest(".sky-stage")
+      ?.querySelectorAll(".stage-top, .search-box, .map-readout, .zoom-controls, .map-caption, .globe-legend");
+    const obstacles: typeof boxes = [];
+    for (const node of overlays ?? []) {
+      const r = node.getBoundingClientRect();
+      if (origin && r.width && r.height)
+        obstacles.push({ x: r.left - origin.left - 4, y: r.top - origin.top - 4, w: r.width + 8, h: r.height + 8 });
+    }
+    const overlaps = (x: number, y: number, w: number, h: number, list: typeof boxes) =>
+      list.some((b) => x < b.x + b.w && x + w > b.x && y < b.y + b.h && y + h > b.y);
+    c.font = `11px ${p.fontFamily}`;
+    for (const edge of edges) {
+      if (overlaps(edge.x - 6, edge.y - 6, 12, 12, obstacles)) continue;
+      const width = c.measureText(edge.label).width + 8;
+      const baseX = clamp(edge.x - edge.dx * 14 - (edge.dx > 0.3 ? width : edge.dx < -0.3 ? 0 : width / 2), 4, size.w - width - 4),
+        baseY = clamp(edge.y - edge.dy * 16, 12, size.h - 12);
+      // Craft in similar directions stack their labels: along a side edge, or inward from the top and bottom.
+      const shifts = Math.abs(edge.dx) > Math.abs(edge.dy)
+        ? [0, 18, -18, 36, -36, 54, -54]
+        : [0, 18, 36, 54, 72].map((d) => -Math.sign(edge.dy || 1) * d);
+      const shift = shifts.find((d) => !overlaps(baseX - 3, baseY + d - 8, width, 16, [...obstacles, ...boxes]));
+      if (shift === undefined) continue;
+      const x = baseX,
+        y = baseY + shift;
+      if (edge.craft) craftHits.push(edge.craft);
+      if (shift) {
+        c.beginPath();
+        c.moveTo(edge.x, edge.y);
+        c.lineTo(clamp(edge.x, x, x + width - 8), y);
+        c.strokeStyle = colors.constellation;
+        c.lineWidth = 0.6;
+        c.stroke();
+      }
+      c.beginPath();
+      c.moveTo(edge.x + edge.dx * 5, edge.y + edge.dy * 5);
+      c.lineTo(edge.x - edge.dx * 3 - edge.dy * 4, edge.y - edge.dy * 3 + edge.dx * 4);
+      c.lineTo(edge.x - edge.dx * 3 + edge.dy * 4, edge.y - edge.dy * 3 - edge.dx * 4);
+      c.closePath();
+      c.fillStyle = edge.craft ? inks.deep : colors.sun;
+      c.fill();
+      boxes.push({ x: x - 3, y: y - 8, w: width, h: 16 });
+      c.fillStyle = colors.label;
+      c.fillRect(x - 3, y - 8, width, 16);
+      c.fillStyle = colors.muted;
+      c.fillText(edge.label, x, y);
+    }
+    c.font = `12px ${p.fontFamily}`;
+
+    // Labels: the selected satellite first, then the observer, deep-space craft and documented missions where they fit.
     const candidates: { label: string; x: number; y: number; selected: boolean; site?: boolean }[] = [];
     if (selectedIndex >= 0 && Number.isFinite(xs[selectedIndex]))
       candidates.push({ label: selectedSatellite!.name, x: xs[selectedIndex], y: ys[selectedIndex], selected: true });
-    if (here.depth >= 0)
+    // Out at the Lagrange points the observer is a pixel inside the planet; a label there would only cover it.
+    if (here.depth >= 0 && f.radius >= 40)
       candidates.push({ label: p.sky.site.name.toUpperCase(), x: here.x, y: here.y, selected: false, site: true });
+    for (const label of deepLabels) candidates.push({ ...label, selected: false });
     // A small, distant globe has no room for standing labels; they would hide the planet.
     if (p.showHighlights && f.radius >= 140)
       satellites.forEach((o, i) => {
@@ -363,9 +561,15 @@ export default function GlobeMap(p: Props) {
     satellites,
     hidden,
     size,
+    deepSpace,
+    deep.data,
   ]);
 
-  const hovered = hover?.object;
+  const hovered = hover?.object,
+    hoveredCraft = hover?.craft;
+  const deepCount = deep.data
+    ? deep.data.craft.filter((_, i) => craftPosition(deep.data!, i, p.sky.time.getTime())).length
+    : 0;
   const toggle = (kind: OrbitClass) =>
     setHidden((previous) => {
       const next = new Set(previous);
@@ -407,23 +611,48 @@ export default function GlobeMap(p: Props) {
             <small>CLICK TO EXPLORE ↗</small>
           </div>
         )}
+        {hoveredCraft && !drag.current && (
+          <div
+            role="tooltip"
+            className="sky-tooltip"
+            style={{ left: clamp(hover.x + 18, 8, size.w - 230), top: clamp(hover.y - 76, 8, size.h - 95) }}
+          >
+            <span className="eyebrow">
+              DEEP SPACE{hoveredCraft.region ? ` · SUN–EARTH ${hoveredCraft.region}` : ""}
+            </span>
+            <strong>{hoveredCraft.name}</strong>
+            <span>{distanceLabel(hoveredCraft.distance)} FROM EARTH</span>
+            <small>POSITION FROM JPL HORIZONS</small>
+          </div>
+        )}
       </div>
-      {p.layers.satellite && (
-        <div className="globe-legend" role="group" aria-label="Satellite classes">
-          {ORBIT_CLASSES.map((kind) => (
+      <div className="globe-legend" role="group" aria-label="Satellite classes">
+        {p.layers.satellite &&
+          ORBIT_CLASSES.filter((kind) => !INACTIVE_CLASSES.has(kind) || counts[kind] > 0).map((kind) => (
             <button
               key={kind}
               aria-pressed={!hidden.has(kind)}
               title={`${hidden.has(kind) ? "Show" : "Hide"} ${orbitLabels[kind].toLowerCase()}`}
               onClick={() => toggle(kind)}
             >
-              <SymbolSwatch kind={kind} color={inks[kind]} />
+              <SymbolSwatch shape={satelliteSymbols[kind].shape} color={inks[kind]} />
               <span>{orbitLabels[kind]}</span>
               <span className="count">{counts[kind].toLocaleString("en-GB")}</span>
             </button>
           ))}
-        </div>
-      )}
+        <button
+          aria-pressed={deepSpace}
+          title={
+            deep.error ||
+            "Spacecraft beyond Earth orbit. Zoom out past the Moon to see those at the Sun–Earth Lagrange points; farther craft point from the chart's edge."
+          }
+          onClick={() => setDeepSpace((value) => !value)}
+        >
+          <SymbolSwatch shape={deepSpaceSymbol.shape} color={inks.deep} />
+          <span>Deep space</span>
+          <span className="count">{deep.error && !deep.data ? "—" : deepCount}</span>
+        </button>
+      </div>
     </>
   );
 }

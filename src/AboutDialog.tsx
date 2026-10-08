@@ -107,6 +107,15 @@ export default function AboutDialog({ fetchedAt, satnogsFetchedAt, onClose }: Pr
           lists live radio downlinks, shown for the selected satellite and marked on the globe.
           CelesTrak’s elements take precedence where both list a satellite.
         </p>
+        <p>
+          Debris &amp; inactive in Sky Layers, off by default, adds CelesTrak’s debris groups and,
+          where configured, the rest of the{" "}
+          <Link href="https://www.space-track.org/">Space-Track.org</Link> catalogue: debris, rocket
+          bodies and inactive satellites. On the globe, zoom out past the Moon to see spacecraft at
+          the Sun–Earth Lagrange points, positioned from{" "}
+          <Link href="https://ssd.jpl.nasa.gov/horizons/">JPL Horizons</Link>; farther craft point
+          from the chart’s edge with their distance.
+        </p>
         <p className="small-note">
           Last orbital-data fetch: {stamp(fetchedAt)} UTC.
           {satnogsFetchedAt && <> SatNOGS DB: {stamp(satnogsFetchedAt)} UTC.</>}

@@ -36,9 +36,12 @@ jobs:
       # Also deletes objects under source/ that the refresh no longer lists, such
       # as files from retired CelesTrak groups, so the R2 token needs delete as
       # well as write access (Cloudflare's "Object Read & Write" includes it).
-      - name: Refresh from CelesTrak and SatNOGS DB, publish to R2 and delete unused objects
+      - name: Refresh from CelesTrak, SatNOGS DB, Space-Track and JPL Horizons, publish to R2 and delete unused objects
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          # Optional: without them the debris layer has CelesTrak's debris groups only.
+          SPACETRACK_IDENTITY: ${{ secrets.SPACETRACK_IDENTITY }}
+          SPACETRACK_PASSWORD: ${{ secrets.SPACETRACK_PASSWORD }}
         run: ./scripts/sync_satellites.sh

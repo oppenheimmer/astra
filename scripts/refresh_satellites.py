@@ -15,6 +15,7 @@ The run fails only when it cannot assemble a usable payload at all.
 """
 import argparse
 import json
+import re
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -23,18 +24,25 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from astra.feeds import FETCH_ERRORS, NotModified  # noqa: E402
-from astra import satnogs  # noqa: E402
+from astra import deep_space, satnogs, spacetrack  # noqa: E402
 from astra.satellites import (  # noqa: E402
     fetch_catalogue, fetch_elements, merge_elements, valid_catalogue, valid_elements, with_satnogs,
 )
 
 # Written next to the merged payload so a later run can reuse a group whose
-# upstream is unavailable. The browser only ever reads MERGED.
+# upstream is unavailable. The browser reads MERGED by default; INACTIVE only
+# when debris and inactive objects are switched on; DEEP_SPACE on the globe.
 MERGED = 'satellites.json'
+INACTIVE = 'inactive.json'
+DEEP_SPACE = 'deep-space.json'
+OUTPUTS = (MERGED, INACTIVE, DEEP_SPACE)
 SOURCES = 'source'
 # Operational satellites only. Dead payloads, rocket bodies and debris are not in
 # this group, and the few rocket bodies it does list are removed by payloads_only.
 GROUPS = ('active',)
+# The debris clouds CelesTrak publishes without an account. Space-Track's full
+# catalogue, when credentials are configured, adds every other tracked object.
+DEBRIS_GROUPS = ('fengyun-1c-debris', 'cosmos-2251-debris', 'iridium-33-debris', 'cosmos-1408-debris')
 
 # Repository copies, used only when a source has no previous run to fall back on.
 # Without these a first run against an empty prefix would silently drop any group
@@ -48,7 +56,7 @@ BUNDLED = {
 
 def source_names() -> list[str]:
     """The files a run keeps under SOURCES. Anything else there is left over and safe to delete."""
-    return [f'{name}.json' for name in (*GROUPS, 'catalogue', 'satnogs')]
+    return [f'{name}.json' for name in (*GROUPS, 'catalogue', 'satnogs', *DEBRIS_GROUPS, 'spacetrack', 'deep-space')]
 
 
 def load(path: Path):
@@ -68,6 +76,11 @@ def validate(name: str, payload: dict) -> dict:
         raise ValueError('Invalid satellite snapshot')
     if name == 'catalogue':
         return {**payload, 'objects': valid_catalogue(payload['objects'])}
+    if name == 'spacetrack':
+        return {**payload, 'elements': valid_elements(payload['elements']),
+                'objects': valid_catalogue(payload['objects'])}
+    if name == 'deep-space':
+        return deep_space.valid(payload)
     if name == 'satnogs':
         # SatNOGS may legitimately add no orbits when CelesTrak already lists them all.
         elements = payload['elements']
@@ -83,7 +96,7 @@ def fallback(name: str, previous: dict | None) -> tuple[dict | None, str]:
             return validate(name, previous), 'keeping previous'
         except FETCH_ERRORS:
             pass
-    bundled = load(ROOT / 'public/data' / BUNDLED[name])
+    bundled = load(ROOT / 'public/data' / BUNDLED[name]) if name in BUNDLED else None
     if bundled:
         try:
             return validate(name, bundled), 'no usable previous run, using bundled copy'
@@ -108,6 +121,14 @@ def refresh(name: str, fetch, previous: dict | None) -> tuple[dict | None, str]:
 
 def fetch_satnogs() -> dict:
     return satnogs.fetch()
+
+
+def fetch_spacetrack() -> dict:
+    return spacetrack.fetch()
+
+
+def fetch_deep_space() -> dict:
+    return deep_space.fetch()
 
 
 def build(directory: Path) -> dict:
@@ -166,20 +187,94 @@ def build(directory: Path) -> dict:
     }
 
 
+def debris_metadata(element: dict) -> dict:
+    """CelesTrak's debris groups carry no object type, but its names follow a fixed convention."""
+    name = element['OBJECT_NAME']
+    kind = 'DEB' if re.search(r'\bDEB\b', name) else 'R/B' if re.search(r'\bR/B\b', name) else 'PAY'
+    return {'objectType': kind, 'owner': '', 'launchDate': '', 'internationalId': element.get('OBJECT_ID', '')}
+
+
+def build_inactive(directory: Path, published: set[int]) -> dict | None:
+    """Everything tracked that MERGED leaves out: debris, rocket bodies and inactive satellites.
+
+    CelesTrak's debris groups need no account; Space-Track's full catalogue,
+    when configured, wins any number both list because it records each
+    object's type. Objects already published in MERGED are left out.
+    """
+    sources = directory / SOURCES
+    notes, groups, debris = [], {}, []
+    for group in DEBRIS_GROUPS:
+        path = sources / f'{group}.json'
+        payload, note = refresh(group, lambda g=group: fetch_elements(g, 30), load(path))
+        notes.append(note)
+        if payload:
+            save(path, payload)
+            groups[group] = payload['fetchedAt']
+            debris.extend(payload['elements'])
+    tracked_path = sources / 'spacetrack.json'
+    tracked, note = refresh('spacetrack', fetch_spacetrack, load(tracked_path))
+    notes.append(note)
+    if tracked:
+        save(tracked_path, tracked)
+        groups['spacetrack'] = tracked['fetchedAt']
+    for note in notes:
+        print(f'  {note}')
+
+    objects = {str(e['NORAD_CAT_ID']): debris_metadata(e) for e in debris}
+    objects.update(tracked['objects'] if tracked else {})
+    elements = [e for e in merge_elements(debris, tracked['elements'] if tracked else [])
+                if e['NORAD_CAT_ID'] not in published]
+    if not elements:
+        return None
+    source = ' + '.join(['CelesTrak debris groups'] * bool(debris) + [spacetrack.SOURCE] * bool(tracked))
+    now = datetime.now(timezone.utc).isoformat()
+    unknown = lambda e: {'objectType': 'UNK', 'owner': '', 'launchDate': '', 'internationalId': e.get('OBJECT_ID', '')}  # noqa: E731
+    return {'fetchedAt': now, 'source': source, 'elements': elements,
+            'catalogue': {'fetchedAt': now, 'source': source,
+                          'objects': {str(e['NORAD_CAT_ID']): objects.get(str(e['NORAD_CAT_ID'])) or unknown(e)
+                                      for e in elements}},
+            'groups': groups, 'cached': False}
+
+
+def build_deep_space(directory: Path) -> dict | None:
+    path = directory / SOURCES / 'deep-space.json'
+    payload, note = refresh('deep-space', fetch_deep_space, load(path))
+    print(f'  {note}')
+    if payload:
+        save(path, payload)
+        payload = {**payload, 'source': deep_space.SOURCE}
+    return payload
+
+
+def run(directory: Path) -> dict:
+    """One full refresh: the default payload, then the optional ones beside it."""
+    payload = build(directory)
+    save(directory / MERGED, payload)
+    published = {e['NORAD_CAT_ID'] for e in payload['elements']}
+    for name, extra in ((INACTIVE, build_inactive(directory, published)), (DEEP_SPACE, build_deep_space(directory))):
+        if extra:
+            save(directory / name, extra)
+    return payload
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument('--dir', type=Path, default=ROOT / 'build/satellites',
                         help='working directory holding the previous run and receiving the new one')
     parser.add_argument('--list-sources', action='store_true',
                         help=f'print the file names kept under {SOURCES}/, one per line, and exit')
+    parser.add_argument('--list-outputs', action='store_true',
+                        help='print the published file names, one per line, and exit')
     args = parser.parse_args()
     if args.list_sources:
         print('\n'.join(source_names()))
         return
+    if args.list_outputs:
+        print('\n'.join(OUTPUTS))
+        return
     directory = args.dir
-    payload = build(directory)
+    payload = run(directory)
     target = directory / MERGED
-    save(target, payload)
     epochs = sum(1 for e in payload['elements'] if 'EPOCH' in e)
     print(f"\n{len(payload['elements'])} elements ({epochs} with an epoch), "
           f"{len(payload['catalogue']['objects'])} catalogue entries, "

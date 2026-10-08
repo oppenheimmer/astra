@@ -38,6 +38,7 @@ import { useWorkspaceShortcuts } from "./useWorkspaceShortcuts";
 import { useMonospaceFont } from "./useMonospaceFont";
 import { useObservingClock } from "./useObservingClock";
 import { useSatelliteFeed } from "./useSatelliteFeed";
+import { useInactiveSatellites } from "./useInactiveSatellites";
 import { useSatelliteSky } from "./useSatelliteSky";
 import { useTelescopeSimulator } from "./useTelescopeSimulator";
 import AboutDialog from "./AboutDialog";
@@ -46,6 +47,10 @@ import ObjectExplorer from "./ObjectExplorer";
 const TelescopePanel = lazy(() => import("./TelescopePanel"));
 const GlobeMap = lazy(() => import("./GlobeMap"));
 import TimeDeck from "./TimeDeck";
+
+/** Kilometres across the chart, in millions once it reaches the Lagrange points. */
+const fieldLabel = (km: number) =>
+  km >= 1e6 ? `${(km / 1e6).toFixed(1)} MILLION KM` : `${Math.round(km).toLocaleString("en-GB")} KM`;
 
 const LAYER_KEYS: LayerKey[] = ["star", "planet", "galaxy", "satellite", "constellation", "highlights", "grid"];
 const HOME_VIEW: View = { mode: "horizon", az: 180, alt: 42, fov: 110 };
@@ -115,7 +120,16 @@ export default function App() {
     () => localDay(time, timeZone),
     [localDate.year, localDate.month, localDate.day, timeZone],
   );
-  const satelliteSky = useSatelliteSky(satellites, time, site);
+  // Debris and inactive objects are off by default and downloaded only when switched on.
+  const [showInactive, setShowInactive] = useState(false);
+  const inactive = useInactiveSatellites(showInactive && layers.satellite);
+  const tracked = useMemo(() => {
+    if (!showInactive || !inactive.satellites.length) return satellites;
+    const active = new Set(satellites.map((s) => s.id));
+    return [...satellites, ...inactive.satellites.filter((s) => !active.has(s.id))];
+  }, [satellites, showInactive, inactive.satellites]);
+  const inactiveCount = tracked.length - satellites.length;
+  const satelliteSky = useSatelliteSky(tracked, time, site);
   const date = useMemo(() => new Date(satelliteSky.time), [satelliteSky.time]);
   const catalogueView = useCatalogueView(view);
   const deep = useDeepStars(catalogueView, satelliteSky.time, site, starMagnitude, layers.star);
@@ -129,7 +143,7 @@ export default function App() {
   );
   const sky = useMemo(() => {
     if (!chartCatalogue) return null;
-    const value = createSky(chartCatalogue, satelliteSky.failed ? satellites : [], date, site, false);
+    const value = createSky(chartCatalogue, satelliteSky.failed ? tracked : [], date, site, false);
     if (!satelliteSky.failed)
       for (const object of satelliteSky.objects) {
         value.objects.push(object);
@@ -137,7 +151,7 @@ export default function App() {
         if (object.alt > 0) value.count++;
       }
     return value;
-  }, [chartCatalogue, satellites, satelliteSky.failed, satelliteSky.objects, date, site]);
+  }, [chartCatalogue, tracked, satelliteSky.failed, satelliteSky.objects, date, site]);
   const selected = useMemo(() => {
     const object = sky?.byId.get(selectedId || "") ?? null;
     if (!object?.satellite) return object;
@@ -423,6 +437,26 @@ export default function App() {
                   <button aria-pressed={!satelliteTrails} disabled={!layers.satellite} onClick={() => setSatelliteTrails(false)}>NONE</button>
                 </div>
               </div>
+              <div className="satellite-trails-control">
+                <span id="inactive-objects-label">Debris &amp; inactive</span>
+                <div role="group" aria-labelledby="inactive-objects-label">
+                  <button aria-pressed={showInactive} disabled={!layers.satellite} onClick={() => setShowInactive(true)}>SHOW</button>
+                  <button aria-pressed={!showInactive} disabled={!layers.satellite} onClick={() => setShowInactive(false)}>HIDE</button>
+                </div>
+              </div>
+              {showInactive && layers.satellite && (
+                <p className="small-note inactive-status" role="status">
+                  {inactive.error ? (
+                    <>
+                      {inactive.error} <button onClick={inactive.retry}>RETRY ↗</button>
+                    </>
+                  ) : inactive.loading && !inactiveCount ? (
+                    "Loading debris and inactive objects…"
+                  ) : (
+                    `${inactiveCount.toLocaleString("en-GB")} more tracked objects: debris, rocket bodies and inactive satellites, from ${inactive.source}.`
+                  )}
+                </p>
+              )}
               <div className={`star-cutoff ${layers.star ? "" : "disabled"}`}>
                 <div className="range-heading">
                   <label htmlFor="star-magnitude">Faintest star</label>
@@ -658,7 +692,7 @@ export default function App() {
                   CENTRE {Math.abs(globeCamera.lat).toFixed(1)}°{hemisphere(globeCamera.lat, "N", "S")}{" "}
                   {Math.abs(globeCamera.lon).toFixed(1)}°{hemisphere(globeCamera.lon, "E", "W")}
                 </span>
-                <span>FIELD {Math.round((2 * EARTH_RADIUS_KM) / globeCamera.zoom).toLocaleString("en-GB")} KM</span>
+                <span>FIELD {fieldLabel((2 * EARTH_RADIUS_KM) / globeCamera.zoom)}</span>
               </div>
             ) : (
               <div className="map-readout">

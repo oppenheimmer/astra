@@ -12,8 +12,12 @@ export interface GlobeCamera {
   /** Earth's radius as a fraction of half the chart's shorter side. */
   zoom: number;
 }
-/** Close enough to read a coastline with the limb still in view, far enough to see the whole geostationary ring. */
-export const GLOBE_ZOOM = { min: 0.11, max: 2.5, home: 0.55 };
+/**
+ * Close enough to read a coastline with the limb still in view; far enough out,
+ * about 4.5 million km across, to take in the spacecraft at both Sun-Earth
+ * Lagrange points 1.5 million km away.
+ */
+export const GLOBE_ZOOM = { min: 0.0028, max: 2.5, home: 0.55 };
 
 export const wrapLongitude = (lon: number) => ((((lon + 180) % 360) + 360) % 360) - 180;
 export const homeCamera = (site: { lat: number; lon: number }): GlobeCamera => ({
@@ -209,8 +213,12 @@ export function earthFixedOrbit(path: Float64Array, gmst: number) {
   return out;
 }
 
-export type OrbitClass = "station" | "radio" | "starlink" | "leo" | "meo" | "geo" | "heo";
-export const ORBIT_CLASSES: OrbitClass[] = ["station", "radio", "leo", "starlink", "meo", "geo", "heo"];
+export type OrbitClass =
+  "station" | "radio" | "starlink" | "leo" | "meo" | "geo" | "heo" | "inactive" | "rocket" | "debris";
+export const ORBIT_CLASSES: OrbitClass[] =
+  ["station", "radio", "leo", "starlink", "meo", "geo", "heo", "inactive", "rocket", "debris"];
+/** Classes from the optional debris and inactive layer; the legend lists them only while it is on. */
+export const INACTIVE_CLASSES: ReadonlySet<OrbitClass> = new Set(["inactive", "rocket", "debris"]);
 export const orbitLabels: Record<OrbitClass, string> = {
   station: "Space stations",
   radio: "Radio / SatNOGS",
@@ -219,6 +227,9 @@ export const orbitLabels: Record<OrbitClass, string> = {
   meo: "Medium Earth orbit",
   geo: "Geosynchronous",
   heo: "Highly elliptical",
+  inactive: "Inactive satellites",
+  rocket: "Rocket bodies",
+  debris: "Debris",
 };
 const classes = new WeakMap<Satellite, OrbitClass>();
 /**
@@ -232,10 +243,13 @@ export function orbitClass(sat: Satellite): OrbitClass {
   let value = classes.get(sat);
   if (value) return value;
   const { MEAN_MOTION: motion, ECCENTRICITY: eccentricity } = sat.elements;
+  const type = sat.metadata?.objectType;
   value = /^(ISS|CSS) \(/.test(sat.name)
     ? "station"
     : sat.satnogs?.transmitters
       ? "radio"
+      : sat.inactive
+        ? type === "DEB" ? "debris" : type === "R/B" ? "rocket" : "inactive"
       : /^STARLINK-/.test(sat.name)
       ? "starlink"
       : eccentricity > 0.25

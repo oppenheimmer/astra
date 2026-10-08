@@ -93,6 +93,28 @@ export interface Satellite {
   elements: OrbitalElements;
   metadata?: SatelliteMetadata;
   satnogs?: SatnogsMetadata;
+  /** From the optional debris and inactive layer rather than the active feed. */
+  inactive?: boolean;
+}
+/** A spacecraft beyond Earth orbit, sampled from JPL Horizons. */
+export interface DeepSpaceCraft {
+  /** Horizons ID. */
+  id: string;
+  name: string;
+  /** The Sun-Earth Lagrange point it works at; blank while travelling. */
+  region: "L1" | "L2" | "";
+  /** Geocentric ICRF x, y, z in km for each sample. */
+  positions: number[];
+}
+export interface DeepSpaceData {
+  fetchedAt: string;
+  source: string;
+  /** UTC time of the first sample. */
+  start: string;
+  /** Milliseconds between samples. */
+  step: number;
+  count: number;
+  craft: DeepSpaceCraft[];
 }
 /** One live downlink from SatNOGS DB. */
 export interface Downlink {

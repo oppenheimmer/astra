@@ -1,4 +1,5 @@
-import type { SatelliteData, Site, Star, TerrainProfile } from "./types";
+import type { DeepSpaceData, SatelliteData, Site, Star, TerrainProfile } from "./types";
+import { parseDeepSpace } from "./deep-space";
 import { validTerrain } from "./terrain";
 import type { StarField } from "./star-catalogue";
 import { parseSatelliteData } from "./satellite-data";
@@ -61,6 +62,12 @@ export const fetchBundled = <T>(file: string) =>
  */
 export const SATELLITE_DATA_URL =
   "https://sky-data.globe-climatesim.workers.dev/satellites.json";
+/** Debris, rocket bodies and inactive satellites: loaded only when that layer is switched on. */
+export const INACTIVE_DATA_URL =
+  "https://sky-data.globe-climatesim.workers.dev/inactive.json";
+/** Spacecraft beyond Earth orbit, sampled from JPL Horizons by the same scheduled refresh. */
+export const DEEP_SPACE_DATA_URL =
+  "https://sky-data.globe-climatesim.workers.dev/deep-space.json";
 
 /** Enough of a payload to plot: elements that parse, with a timestamp to age them against. */
 export function validSatelliteData(data: unknown): boolean {
@@ -89,6 +96,20 @@ export async function fetchSatellites(signal?: AbortSignal): Promise<SatelliteDa
       getJSON<unknown>("/api/satellites", undefined, "Orbital data unavailable.", { signal }),
     );
   }
+}
+
+/** The optional layer has no server fallback: when it is unreachable, the toggle says so and offers a retry. */
+export const fetchInactive = (signal?: AbortSignal) =>
+  satellitesFrom(() =>
+    getJSON<unknown>(INACTIVE_DATA_URL, undefined, "Debris and inactive objects unavailable.", { signal }),
+  );
+
+export async function fetchDeepSpace(signal?: AbortSignal): Promise<DeepSpaceData> {
+  const data = parseDeepSpace(
+    await getJSON<unknown>(DEEP_SPACE_DATA_URL, undefined, "Deep-space positions unavailable.", { signal }),
+  );
+  if (!data) throw Error("Invalid deep-space data.");
+  return data;
 }
 
 export async function fetchHorizon(
