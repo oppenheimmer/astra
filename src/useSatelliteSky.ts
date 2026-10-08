@@ -41,14 +41,17 @@ export function useSatelliteSky(satellites: Satellite[], time: number, site: Sit
     return () => { send.current = null; worker.terminate(); };
   }, [satellites]);
   useEffect(() => { send.current?.({ time, site, siteKey }); }, [time, site, siteKey]);
-  const current = frame?.catalogue === satellites && frame.siteKey === siteKey ? frame : null;
+  // A changed catalogue starts a new worker. Until its first frame arrives, keep drawing the
+  // previous frame: it is complete in itself, with its own catalogue and time, so switching a
+  // layer on or off never blanks the sky for the seconds a large first propagation takes.
+  const current = frame?.siteKey === siteKey ? frame : null;
   const objects = useMemo(() => {
     if (!current) return EMPTY;
-    const result: SkyObject[] = [], v = current.values;
-    for (let i = 0; i < satellites.length; i++) {
+    const result: SkyObject[] = [], v = current.values, catalogue = current.catalogue;
+    for (let i = 0; i < catalogue.length; i++) {
       const offset = i * SATELLITE_FRAME_STRIDE;
       if (!Number.isFinite(v[offset])) continue;
-      const s = satellites[i];
+      const s = catalogue[i];
       result.push({ id: s.id, name: s.name, kind: "satellite", satellite: s,
         subtitle: describeSatellite(s).label + " · NORAD " + s.elements.NORAD_CAT_ID, mag: 3, unit: "km",
         az: v[offset], alt: v[offset + 1], ra: v[offset + 2], dec: v[offset + 3],
@@ -58,6 +61,6 @@ export function useSatelliteSky(satellites: Satellite[], time: number, site: Sit
       });
     }
     return result;
-  }, [current, satellites]);
+  }, [current]);
   return { objects, time: failed ? time : current?.time ?? time, failed };
 }
