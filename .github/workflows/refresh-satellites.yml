@@ -36,7 +36,7 @@ jobs:
       # Also deletes objects under source/ that the refresh no longer lists, such
       # as files from retired CelesTrak groups, so the R2 token needs delete as
       # well as write access (Cloudflare's "Object Read & Write" includes it).
-      - name: Refresh from CelesTrak, publish to R2 and delete unused objects
+      - name: Refresh from CelesTrak and SatNOGS DB, publish to R2 and delete unused objects
         env:
           R2_ACCOUNT_ID: ${{ secrets.R2_ACCOUNT_ID }}
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}

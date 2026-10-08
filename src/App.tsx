@@ -762,7 +762,13 @@ export default function App() {
         </div>
       )}
       {siteOpen && <LocationDialog workflow={location} />}
-      {about && <AboutDialog fetchedAt={satelliteData?.fetchedAt} onClose={() => setAbout(false)} />}
+      {about && (
+        <AboutDialog
+          fetchedAt={satelliteData?.fetchedAt}
+          satnogsFetchedAt={satelliteData?.satnogs?.fetchedAt}
+          onClose={() => setAbout(false)}
+        />
+      )}
     </div>
   );
 }

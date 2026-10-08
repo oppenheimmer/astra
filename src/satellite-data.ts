@@ -1,4 +1,6 @@
-import type { OrbitalElements, SatelliteCatalogue, SatelliteData, SatelliteMetadata } from "./types";
+import type {
+  OrbitalElements, SatelliteCatalogue, SatelliteData, SatelliteMetadata, SatnogsCatalogue, SatnogsMetadata,
+} from "./types";
 
 const MAX_ELEMENTS = 50000;
 const record = (value: unknown): value is Record<string, unknown> =>
@@ -59,6 +61,31 @@ function parseCatalogue(value: unknown): SatelliteCatalogue | null {
   return { fetchedAt: value.fetchedAt, source: value.source, objects };
 }
 
+const SATNOGS_TEXT = ["id", "name", "status", "operator", "countries", "website", "launched", "orbitSource"] as const;
+function parseSatnogs(value: unknown): SatnogsCatalogue | null {
+  if (!record(value) || typeof value.source !== "string" || typeof value.fetchedAt !== "string" ||
+      !record(value.objects) || Object.keys(value.objects).length > MAX_ELEMENTS) return null;
+  const objects: Record<string, SatnogsMetadata> = {};
+  for (const [id, item] of Object.entries(value.objects)) {
+    if (!/^\d+$/.test(id) || !record(item) || SATNOGS_TEXT.some((key) => typeof item[key] !== "string") ||
+        !/^[A-Z0-9-]{4,40}$/.test(item.id as string) ||
+        // Rendered as a link, so only web addresses are accepted.
+        (item.website !== "" && !/^https?:\/\//.test(item.website as string)) ||
+        !Number.isSafeInteger(item.transmitters) || (item.transmitters as number) < 0 ||
+        !Array.isArray(item.downlinks) || item.downlinks.length > 3) return null;
+    const downlinks = [];
+    for (const link of item.downlinks) {
+      if (!record(link) || !Number.isSafeInteger(link.frequency) || (link.frequency as number) <= 0 ||
+          typeof link.description !== "string" || typeof link.mode !== "string") return null;
+      downlinks.push({ description: link.description, frequency: link.frequency as number, mode: link.mode });
+    }
+    const text = Object.fromEntries(SATNOGS_TEXT.map((key) => [key, item[key] as string]));
+    objects[id] = { ...(text as Pick<SatnogsMetadata, typeof SATNOGS_TEXT[number]>),
+      transmitters: item.transmitters as number, downlinks };
+  }
+  return { fetchedAt: value.fetchedAt, source: value.source, objects };
+}
+
 /** Reject the complete response if any element is invalid, preserving the previous healthy snapshot. */
 export function parseSatelliteData(value: unknown): SatelliteData | null {
   if (!record(value) || typeof value.fetchedAt !== "string" || !orbitalEpoch(value.fetchedAt) ||
@@ -73,6 +100,9 @@ export function parseSatelliteData(value: unknown): SatelliteData | null {
   }
   const catalogue = value.catalogue === undefined ? undefined : parseCatalogue(value.catalogue);
   if (catalogue === null) return null;
+  const satnogs = value.satnogs === undefined ? undefined : parseSatnogs(value.satnogs);
+  if (satnogs === null) return null;
   return { fetchedAt: value.fetchedAt, source: value.source, elements,
-    ...(value.cached === undefined ? {} : { cached: value.cached }), ...(catalogue ? { catalogue } : {}) };
+    ...(value.cached === undefined ? {} : { cached: value.cached }), ...(catalogue ? { catalogue } : {}),
+    ...(satnogs ? { satnogs } : {}) };
 }

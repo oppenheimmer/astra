@@ -52,6 +52,11 @@ function addSymbol(c: CanvasRenderingContext2D, shape: SatelliteShape, x: number
     c.lineTo(x, y + h);
     c.lineTo(x - h, y);
     c.closePath();
+  } else if (shape === "cross") {
+    c.moveTo(x - h, y - h);
+    c.lineTo(x + h, y + h);
+    c.moveTo(x + h, y - h);
+    c.lineTo(x - h, y + h);
   } else if (shape === "triangle") {
     c.moveTo(x, y - h);
     c.lineTo(x + h, y + h * 0.75);
@@ -75,7 +80,7 @@ function addBrackets(c: CanvasRenderingContext2D, x: number, y: number, n: numbe
 /** A legend swatch drawn with the same geometry as the canvas symbol. */
 export function SymbolSwatch({ kind, color }: { kind: OrbitClass; color: string }) {
   const { shape } = satelliteSymbols[kind];
-  const fill = shape === "ring" ? "none" : color;
+  const fill = shape === "ring" || shape === "cross" ? "none" : color;
   return (
     <svg viewBox="-6 -6 12 12" aria-hidden="true">
       {shape === "dot" && <circle r="1.6" fill={fill} />}
@@ -83,6 +88,7 @@ export function SymbolSwatch({ kind, color }: { kind: OrbitClass; color: string 
       {shape === "square" && <rect x="-1.6" y="-1.6" width="3.2" height="3.2" fill={fill} />}
       {shape === "diamond" && <path d="M0 -3L3 0L0 3L-3 0Z" fill={fill} />}
       {shape === "triangle" && <path d="M0 -3L3 2.25L-3 2.25Z" fill={fill} />}
+      {shape === "cross" && <path d="M-2.6 -2.6L2.6 2.6M2.6 -2.6L-2.6 2.6" stroke={color} strokeWidth="1.1" />}
       {shape === "station" && (
         <>
           <rect x="-1.4" y="-1.4" width="2.8" height="2.8" fill={fill} />
@@ -250,7 +256,7 @@ export default function GlobeMap(p: Props) {
         c.globalAlpha = lit ? 1 : 0.45;
         c.beginPath();
         for (const i of group) addSymbol(c, symbol.shape, xs[i], ys[i], s);
-        if (symbol.shape === "ring") {
+        if (symbol.shape === "ring" || symbol.shape === "cross") {
           c.strokeStyle = color;
           c.lineWidth = 1;
           c.stroke();

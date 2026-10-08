@@ -32,3 +32,5 @@ print('HYG license:',(DATA/'HYG-LICENSE.txt').read_text()[:500])
 
 from fetch_satellite_catalogue import fetch_catalogue
 fetch_catalogue()
+from fetch_satnogs import fetch_satnogs
+fetch_satnogs()

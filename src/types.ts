@@ -92,6 +92,35 @@ export interface Satellite {
   record: SatRec;
   elements: OrbitalElements;
   metadata?: SatelliteMetadata;
+  satnogs?: SatnogsMetadata;
+}
+/** One live downlink from SatNOGS DB. */
+export interface Downlink {
+  description: string;
+  /** Hertz. */
+  frequency: number;
+  mode: string;
+}
+/** SatNOGS DB's record of a satellite: its status and radio transmitters. */
+export interface SatnogsMetadata {
+  /** SatNOGS satellite identifier, for its page on db.satnogs.org. */
+  id: string;
+  name: string;
+  status: string;
+  operator: string;
+  countries: string;
+  website: string;
+  launched: string;
+  /** Where SatNOGS took this satellite's published orbit from; blank when CelesTrak supplied it. */
+  orbitSource: string;
+  /** Live transmitters; `downlinks` lists only the first few. */
+  transmitters: number;
+  downlinks: Downlink[];
+}
+export interface SatnogsCatalogue {
+  fetchedAt: string;
+  source: string;
+  objects: Record<string, SatnogsMetadata>;
 }
 export interface SatelliteMetadata {
   objectType: "PAY" | "R/B" | "DEB" | "UNK";
@@ -110,6 +139,7 @@ export interface SatelliteData {
   elements: OrbitalElements[];
   cached?: boolean;
   catalogue?: SatelliteCatalogue;
+  satnogs?: SatnogsCatalogue;
 }
 export interface FeatureCollection<Properties, Coordinates> {
   features: {

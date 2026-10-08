@@ -1,9 +1,11 @@
 """Refresh the orbital-element snapshot that the deployed chart reads.
 
 Run on a schedule by `.github/workflows/refresh-satellites.yml`. Fetches the
-CelesTrak groups, merges them into the single payload the browser loads, and
-writes everything into a working directory for `upload_satellites.sh` to push
-to object storage.
+CelesTrak groups and SatNOGS DB, merges them into the single payload the
+browser loads, and writes everything into a working directory for
+`sync_satellites.sh` to push to object storage. CelesTrak's elements win any
+NORAD number both sources list; SatNOGS adds the satellites CelesTrak's active
+group lacks and radio transmitters for every satellite it tracks.
 
 Partial failure is normal and is handled rather than aborted. CelesTrak answers
 403 when the caller already has the newest elements for a group, and a run may
@@ -21,8 +23,9 @@ ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 
 from astra.feeds import FETCH_ERRORS, NotModified  # noqa: E402
+from astra import satnogs  # noqa: E402
 from astra.satellites import (  # noqa: E402
-    fetch_catalogue, fetch_elements, merge_elements, payloads_only, valid_catalogue, valid_elements,
+    fetch_catalogue, fetch_elements, merge_elements, valid_catalogue, valid_elements, with_satnogs,
 )
 
 # Written next to the merged payload so a later run can reuse a group whose
@@ -39,12 +42,13 @@ GROUPS = ('active',)
 BUNDLED = {
     'active': 'active.json',
     'catalogue': 'active-catalogue.json',
+    'satnogs': 'satnogs.json',
 }
 
 
 def source_names() -> list[str]:
     """The files a run keeps under SOURCES. Anything else there is left over and safe to delete."""
-    return [f'{name}.json' for name in (*GROUPS, 'catalogue')]
+    return [f'{name}.json' for name in (*GROUPS, 'catalogue', 'satnogs')]
 
 
 def load(path: Path):
@@ -64,6 +68,11 @@ def validate(name: str, payload: dict) -> dict:
         raise ValueError('Invalid satellite snapshot')
     if name == 'catalogue':
         return {**payload, 'objects': valid_catalogue(payload['objects'])}
+    if name == 'satnogs':
+        # SatNOGS may legitimately add no orbits when CelesTrak already lists them all.
+        elements = payload['elements']
+        return {**payload, 'elements': valid_elements(elements) if elements else [],
+                'objects': satnogs.valid_objects(payload['objects'])}
     return {**payload, 'elements': valid_elements(payload['elements'])}
 
 
@@ -97,6 +106,10 @@ def refresh(name: str, fetch, previous: dict | None) -> tuple[dict | None, str]:
     return payload, f'{name}: refreshed'
 
 
+def fetch_satnogs() -> dict:
+    return satnogs.fetch()
+
+
 def build(directory: Path) -> dict:
     sources = directory / SOURCES
     notes, groups, elements = [], {}, []
@@ -116,22 +129,37 @@ def build(directory: Path) -> dict:
     if catalogue:
         save(catalogue_path, catalogue)
 
+    satnogs_path = sources / 'satnogs.json'
+    radio, note = refresh('satnogs', fetch_satnogs, load(satnogs_path))
+    notes.append(note)
+    if radio:
+        save(satnogs_path, radio)
+
     for note in notes:
         print(f'  {note}')
     if not elements:
         raise SystemExit('No orbital elements available from any source or previous run.')
 
-    # Earlier entries in GROUPS win a duplicate NORAD ID.
-    merged = merge_elements(*reversed(elements))
-    merged = payloads_only(merged, catalogue.get('objects', {}) if catalogue else {})
+    # Earlier entries in GROUPS win a duplicate NORAD ID, and CelesTrak wins over SatNOGS.
+    merged, radio_details = with_satnogs(merge_elements(*reversed(elements)), radio,
+                                         catalogue.get('objects', {}) if catalogue else {})
+    source = 'CelesTrak ' + ' + '.join(g for g in GROUPS if g in groups) + (' groups' if len(groups) > 1 else ' group')
+    if radio:
+        groups['satnogs'] = radio['fetchedAt']
+        source += f' + {satnogs.SOURCE}'
     return {
         'fetchedAt': datetime.now(timezone.utc).isoformat(),
-        'source': 'CelesTrak ' + ' + '.join(g for g in GROUPS if g in groups) + (' groups' if len(groups) > 1 else ' group'),
+        'source': source,
         'elements': merged,
         'catalogue': {
             'fetchedAt': catalogue.get('fetchedAt', '') if catalogue else '',
             'source': 'CelesTrak SATCAT',
             'objects': catalogue.get('objects', {}) if catalogue else {},
+        },
+        'satnogs': {
+            'fetchedAt': radio.get('fetchedAt', '') if radio else '',
+            'source': satnogs.SOURCE,
+            'objects': radio_details,
         },
         'groups': groups,
         'cached': False,
@@ -155,6 +183,7 @@ def main() -> None:
     epochs = sum(1 for e in payload['elements'] if 'EPOCH' in e)
     print(f"\n{len(payload['elements'])} elements ({epochs} with an epoch), "
           f"{len(payload['catalogue']['objects'])} catalogue entries, "
+          f"{len(payload['satnogs']['objects'])} SatNOGS entries, "
           f"{target.stat().st_size / 1e6:.2f} MB -> {target}")
 
 

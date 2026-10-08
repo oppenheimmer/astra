@@ -18,6 +18,7 @@ const bundled: Record<string, unknown> = Object.fromEntries(
   ["stars.json", "messier.json", "constellations.lines.json", "constellations.json", "satellites.json", "satellite-catalogue.json"]
     .map((name) => [name, load(name)]),
 );
+const issRadio = { ...load("satnogs.json").objects["25544"], orbitSource: "" };
 const respond = (status: number, body: unknown) => ({ ok: status < 300, status, json: async () => body });
 const OFFLINE = "Service unavailable in this test.";
 
@@ -29,6 +30,8 @@ const published = () => {
     source: "CelesTrak visual groups",
     elements: visual.elements,
     catalogue: bundled["satellite-catalogue.json"],
+    // As published: CelesTrak supplies the ISS orbit, SatNOGS its radio details.
+    satnogs: { fetchedAt: "2026-09-05T20:00:00Z", source: "SatNOGS DB", objects: { "25544": issRadio } },
     groups: { visual: visual.fetchedAt },
     cached: false,
   };
@@ -214,6 +217,14 @@ describe("Starmap desk", () => {
     await waitFor(() => expect(heading()).toBe("ISS (ZARYA)"));
     expect(screen.queryByText("CENTRE 51.5°N 0.0°W")).toBeNull();
     expect(screen.getByRole("button", { name: "CENTRE ON GLOBE" })).toBeTruthy();
+    // SatNOGS DB's radio record for the selected satellite.
+    expect(screen.getByText("RADIO / SATNOGS DB")).toBeTruthy();
+    expect(screen.getByText(`${issRadio.transmitters} LIVE TRANSMITTERS`)).toBeTruthy();
+    const downlinks = within(screen.getByRole("list", { name: "Live downlinks" })).getAllByRole("listitem");
+    expect(downlinks[0].textContent).toContain(`${(issRadio.downlinks[0].frequency / 1e6).toFixed(3)} MHz`);
+    expect(screen.getByText("CelesTrak")).toBeTruthy();
+    expect(screen.getByRole("link", { name: /SATNOGS DB/ }).getAttribute("href")).toBe(
+      `https://db.satnogs.org/satellite/${issRadio.id}`);
 
     // Anything else is found in the sky, which kept its own view.
     fireEvent.change(search, { target: { value: "Vega" } });

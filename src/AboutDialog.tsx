@@ -3,6 +3,8 @@ import { SATELLITE_MAX_DAYS, SATELLITE_STALE_DAYS } from "./sky";
 interface Props {
   /** UTC timestamp of the last orbital-data fetch, when known. */
   fetchedAt?: string;
+  /** UTC timestamp of the SatNOGS DB snapshot, when one was loaded. */
+  satnogsFetchedAt?: string;
   onClose: () => void;
 }
 
@@ -12,7 +14,9 @@ const Link = ({ href, children }: { href: string; children: React.ReactNode }) =
   </a>
 );
 
-export default function AboutDialog({ fetchedAt, onClose }: Props) {
+const stamp = (value?: string) => value?.slice(0, 19).replace("T", " ") || "unavailable";
+
+export default function AboutDialog({ fetchedAt, satnogsFetchedAt, onClose }: Props) {
   return (
     <div className="modal-backdrop" onClick={onClose}>
       <div
@@ -96,8 +100,16 @@ export default function AboutDialog({ fetchedAt, onClose }: Props) {
           guess rather than a position. Sunlight/shadow is approximate; brightness, weather and
           atmospheric extinction are not modelled.
         </p>
+        <p>
+          <Link href="https://db.satnogs.org/">SatNOGS DB</Link> (CC BY-SA 4.0) adds the satellites
+          it tracks that CelesTrak’s active group lacks, mostly amateur and research craft, with
+          elements it republishes from Space-Track.org or maintains for new deployments. It also
+          lists live radio downlinks, shown for the selected satellite and marked on the globe.
+          CelesTrak’s elements take precedence where both list a satellite.
+        </p>
         <p className="small-note">
-          Last orbital-data fetch: {fetchedAt?.slice(0, 19).replace("T", " ") || "unavailable"} UTC.
+          Last orbital-data fetch: {stamp(fetchedAt)} UTC.
+          {satnogsFetchedAt && <> SatNOGS DB: {stamp(satnogsFetchedAt)} UTC.</>}
         </p>
         <h3>MOUNTAINS / LOCAL TIME</h3>
         <p>

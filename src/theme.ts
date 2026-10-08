@@ -45,7 +45,7 @@ export const skyPalette = {
   },
 };
 
-export type SatelliteShape = "dot" | "square" | "ring" | "diamond" | "triangle" | "station";
+export type SatelliteShape = "dot" | "square" | "ring" | "diamond" | "triangle" | "cross" | "station";
 /**
  * Globe symbols borrow the chart's own inks and are told apart by shape too, so
  * the classes stay distinct for readers who cannot separate the colours. The
@@ -53,6 +53,7 @@ export type SatelliteShape = "dot" | "square" | "ring" | "diamond" | "triangle" 
  */
 export const satelliteSymbols: Record<OrbitClass, { shape: SatelliteShape; size: number; color: keyof typeof skyPalette.light }> = {
   station: { shape: "station", size: 3.2, color: "satelliteBracket" },
+  radio: { shape: "cross", size: 3.6, color: "ink" },
   leo: { shape: "square", size: 2.4, color: "satelliteDot" },
   starlink: { shape: "dot", size: 1.8, color: "dim" },
   meo: { shape: "ring", size: 4, color: "ink" },

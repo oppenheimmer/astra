@@ -209,10 +209,11 @@ export function earthFixedOrbit(path: Float64Array, gmst: number) {
   return out;
 }
 
-export type OrbitClass = "station" | "starlink" | "leo" | "meo" | "geo" | "heo";
-export const ORBIT_CLASSES: OrbitClass[] = ["station", "leo", "starlink", "meo", "geo", "heo"];
+export type OrbitClass = "station" | "radio" | "starlink" | "leo" | "meo" | "geo" | "heo";
+export const ORBIT_CLASSES: OrbitClass[] = ["station", "radio", "leo", "starlink", "meo", "geo", "heo"];
 export const orbitLabels: Record<OrbitClass, string> = {
   station: "Space stations",
+  radio: "Radio / SatNOGS",
   leo: "Low Earth orbit",
   starlink: "Starlink",
   meo: "Medium Earth orbit",
@@ -223,7 +224,9 @@ const classes = new WeakMap<Satellite, OrbitClass>();
 /**
  * Regime by period and shape: low orbits complete a revolution in under 128
  * minutes, geosynchronous ones in about a sidereal day. Station modules and the
- * Starlink shell are split out because they dominate how the sky looks.
+ * Starlink shell are split out because they dominate how the sky looks, and
+ * satellites SatNOGS DB lists with a live transmitter because an observer can
+ * listen for them.
  */
 export function orbitClass(sat: Satellite): OrbitClass {
   let value = classes.get(sat);
@@ -231,7 +234,9 @@ export function orbitClass(sat: Satellite): OrbitClass {
   const { MEAN_MOTION: motion, ECCENTRICITY: eccentricity } = sat.elements;
   value = /^(ISS|CSS) \(/.test(sat.name)
     ? "station"
-    : /^STARLINK-/.test(sat.name)
+    : sat.satnogs?.transmitters
+      ? "radio"
+      : /^STARLINK-/.test(sat.name)
       ? "starlink"
       : eccentricity > 0.25
         ? "heo"

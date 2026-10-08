@@ -782,3 +782,41 @@
   right: 0;
   text-align: center;
 }
+
+/* SatNOGS radio details in the object explorer. */
+.satnogs-details {
+  margin-bottom: 18px;
+}
+.satnogs-details .diagram-label {
+  margin-bottom: 10px;
+}
+.downlinks {
+  list-style: none;
+  margin: 0 0 12px;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+.downlinks li {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 2px 10px;
+  font-size: 11px;
+}
+.downlinks strong {
+  font-weight: 400;
+}
+.downlinks span {
+  color: var(--muted);
+  font-size: 10px;
+  text-align: right;
+}
+.downlinks small {
+  grid-column: 1 / -1;
+  color: var(--dim);
+  font-size: 10px;
+}
+.satnogs-details .satellite-sources {
+  margin: 12px 0 0;
+}

@@ -215,6 +215,7 @@ export function epochAgeDays(epoch: string, date: Date) {
 export function prepareSatellites(data: SatelliteData): Satellite[] {
   return [...new Map(data.elements.map(e => [e.NORAD_CAT_ID, e])).values()].flatMap((e) => {
     try {
+      const satnogs = data.satnogs?.objects[String(e.NORAD_CAT_ID)];
       return [
         {
           id: "sat" + e.NORAD_CAT_ID,
@@ -225,7 +226,11 @@ export function prepareSatellites(data: SatelliteData): Satellite[] {
           metadata: data.catalogue?.objects[String(e.NORAD_CAT_ID)] ??
             (/^STARLINK-\d+$/.test(e.OBJECT_NAME) ? {
               objectType: "PAY", owner: "US", launchDate: "", internationalId: e.OBJECT_ID,
+            } : satnogs ? {
+              // Satellites only SatNOGS lists are spacecraft; rocket bodies and debris are not published.
+              objectType: "PAY", owner: "", launchDate: satnogs.launched, internationalId: e.OBJECT_ID,
             } : undefined),
+          ...(satnogs ? { satnogs } : {}),
         },
       ];
     } catch {

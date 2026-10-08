@@ -77,7 +77,7 @@ class Refresh(unittest.TestCase):
     def seed(self, name, payload):
         (self.dir / 'source' / f'{name}.json').write_text(json.dumps(payload))
 
-    def build(self, elements=None, catalogue=None):
+    def build(self, elements=None, catalogue=None, radio=None):
         def fetch_elements(g, _timeout):
             result = (elements or {}).get(g)
             if isinstance(result, Exception):
@@ -87,8 +87,13 @@ class Refresh(unittest.TestCase):
             if isinstance(catalogue, Exception):
                 raise catalogue
             return catalogue or {'objects': {}}
+        def fetch_satnogs():
+            if isinstance(radio, Exception):
+                raise radio
+            return radio or {'elements': [], 'objects': {}}
         with patch.object(refresh_satellites, 'fetch_elements', fetch_elements), \
-             patch.object(refresh_satellites, 'fetch_catalogue', fetch_catalogue):
+             patch.object(refresh_satellites, 'fetch_catalogue', fetch_catalogue), \
+             patch.object(refresh_satellites, 'fetch_satnogs', fetch_satnogs):
             return refresh_satellites.build(self.dir)
 
     def test_a_quiet_group_keeps_its_previous_elements(self):

@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Refresh the orbital-element snapshot and publish it to Cloudflare R2.
 #
-# One full cycle: pull the previous per-group files down, ask CelesTrak for
+# One full cycle: pull the previous per-group files down, ask CelesTrak and SatNOGS DB for
 # anything newer, merge, push the result back up. Run on a schedule by
 # .github/workflows/refresh-satellites.yml, and runnable by hand for a manual
 # refresh or to bootstrap an empty prefix.
@@ -92,7 +92,7 @@ else
     exit 1
 fi
 
-echo "Refreshing from CelesTrak"
+echo "Refreshing from CelesTrak and SatNOGS DB"
 # shellcheck disable=SC2086
 $PYTHON scripts/refresh_satellites.py --dir "$WORK"
 

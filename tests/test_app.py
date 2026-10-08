@@ -35,15 +35,26 @@ class Api(unittest.TestCase):
         ids = [e['NORAD_CAT_ID'] for e in data['elements']]
         self.assertEqual(len(ids), len(set(ids)))
         bundled = {e['NORAD_CAT_ID'] for e in satellites.active.snapshot['elements']}
+        radio = {e['NORAD_CAT_ID'] for e in satellites.radio.snapshot['elements']}
         non_payloads = {int(k) for k, v in satellites.catalogue.snapshot['objects'].items()
                         if v['objectType'] != 'PAY'}
         self.assertTrue(bundled & non_payloads, 'the bundled active group lists rocket bodies to remove')
-        self.assertEqual(set(ids), bundled - non_payloads)
+        self.assertTrue(radio - bundled, 'SatNOGS adds satellites the active group lacks')
+        self.assertEqual(set(ids), (bundled | radio) - non_payloads)
         self.assertIn(25544, ids)
-        self.assertEqual(data['source'], 'CelesTrak active group')
+        # CelesTrak's elements win a number both sources list.
+        iss = next(e for e in data['elements'] if e['NORAD_CAT_ID'] == 25544)
+        self.assertEqual(iss, next(e for e in satellites.active.snapshot['elements'] if e['NORAD_CAT_ID'] == 25544))
+        self.assertEqual(data['source'], 'CelesTrak active group + SatNOGS DB')
         self.assertEqual(data['fetchedAt'], satellites.active.fetched_at)
-        self.assertEqual(data['groups'], {'active': satellites.active.fetched_at})
+        self.assertEqual(data['groups'], {'active': satellites.active.fetched_at, 'satnogs': satellites.radio.fetched_at})
         self.assertIn('objects', data['catalogue'])
+        radio_details = data['satnogs']['objects']
+        self.assertLessEqual({int(k) for k in radio_details}, set(ids), 'details only for published satellites')
+        self.assertEqual(radio_details['25544']['orbitSource'], '', 'the ISS orbit comes from CelesTrak')
+        self.assertTrue(radio_details['25544']['transmitters'] > 0)
+        extra = next(iter(radio - bundled - non_payloads))
+        self.assertTrue(radio_details[str(extra)]['orbitSource'], 'SatNOGS is named where it supplied the orbit')
         with patch.object(time, 'time', return_value=time.time() + 86400):
             self.assertTrue(satellites.combined()['cached'], 'bundled snapshots age past the refresh interval')
         self.assertEqual(response.headers['cache-control'], 'public, max-age=300')

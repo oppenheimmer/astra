@@ -1,12 +1,11 @@
 """CelesTrak orbital elements and SATCAT metadata, served from bundled snapshots."""
-from datetime import datetime, timezone
-import math
-import re
 from typing import Any
 
 import requests
 
-from . import snapshot
+from . import satnogs, snapshot
+# Re-exported: the refresh and the tests reach the validators through this module.
+from .elements import EPOCH_FORMAT, MAX_ELEMENTS, norad_id, orbital_number, valid_elements  # noqa: F401
 from .feeds import Feed, NotModified
 from .upstream import HEADERS
 
@@ -14,65 +13,7 @@ ELEMENTS_URL = 'https://celestrak.org/NORAD/elements/gp.php'
 SATCAT_URL = 'https://celestrak.org/satcat/records.php'
 ELEMENT_SECONDS = 7200
 CATALOGUE_SECONDS = 86400
-MAX_ELEMENTS = 50000
-EPOCH_FORMAT = re.compile(r'\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?(?:Z|[+-]\d{2}:\d{2})?\Z')
-
-
-def norad_id(value: Any) -> int:
-    """Normalize JSON integer/string IDs without accepting floats, booleans or containers."""
-    if isinstance(value, str) and value.isascii() and value.isdigit():
-        value = int(value)
-    if type(value) is not int or not 0 < value <= 9007199254740991:
-        raise ValueError('Invalid NORAD catalogue number')
-    return value
-
-
-def orbital_number(value: Any) -> float:
-    if isinstance(value, bool) or not isinstance(value, (str, int, float)):
-        raise ValueError('Invalid orbital number')
-    number = float(value)
-    if not math.isfinite(number):
-        raise ValueError('Invalid orbital number')
-    return number
-
-
-def valid_elements(items: Any) -> list[dict]:
-    if not isinstance(items, list) or not items or len(items) > MAX_ELEMENTS:
-        raise ValueError('Invalid orbital-data response')
-    normalized = []
-    for item in items:
-        try:
-            if not isinstance(item, dict):
-                raise ValueError('Invalid orbital element')
-            element = {**item, 'NORAD_CAT_ID': norad_id(item['NORAD_CAT_ID'])}
-            epoch = item['EPOCH']
-            if not isinstance(epoch, str) or not EPOCH_FORMAT.fullmatch(epoch):
-                raise ValueError('Invalid orbital epoch')
-            parsed_epoch = datetime.fromisoformat(epoch)  # Also reject impossible calendar dates.
-            if parsed_epoch.tzinfo is None:
-                parsed_epoch = parsed_epoch.replace(tzinfo=timezone.utc)
-            element['EPOCH'] = parsed_epoch.astimezone(timezone.utc).isoformat().replace('+00:00', 'Z')
-            if not isinstance(item.get('OBJECT_NAME'), str) or not item['OBJECT_NAME'].strip():
-                raise ValueError('Invalid satellite name')
-            for key in ('OBJECT_ID', 'CLASSIFICATION_TYPE'):
-                if key in item and not isinstance(item[key], str):
-                    raise ValueError('Invalid satellite metadata')
-            element['OBJECT_ID'] = item.get('OBJECT_ID', '')
-            element['ELEMENT_SET_NO'] = orbital_number(item.get('ELEMENT_SET_NO', 0))
-            if not (0 <= element['ELEMENT_SET_NO'] <= 9007199254740991 and element['ELEMENT_SET_NO'].is_integer()):
-                raise ValueError('Invalid satellite element-set number')
-            element['ELEMENT_SET_NO'] = int(element['ELEMENT_SET_NO'])
-            for key in ('MEAN_MOTION', 'ECCENTRICITY', 'INCLINATION', 'RA_OF_ASC_NODE',
-                        'ARG_OF_PERICENTER', 'MEAN_ANOMALY', 'BSTAR', 'MEAN_MOTION_DOT', 'MEAN_MOTION_DDOT'):
-                element[key] = orbital_number(item[key])
-            if not (0 < element['MEAN_MOTION'] <= 20 and 0 <= element['ECCENTRICITY'] < 1 and
-                    0 <= element['INCLINATION'] <= 180 and
-                    all(0 <= element[key] < 360 for key in ('RA_OF_ASC_NODE', 'ARG_OF_PERICENTER', 'MEAN_ANOMALY'))):
-                raise ValueError('Orbital number outside its physical range')
-        except (KeyError, TypeError, OverflowError) as error:
-            raise ValueError('Invalid orbital element') from error
-        normalized.append(element)
-    return normalized
+SATNOGS_SECONDS = 43200
 
 
 def fetch_elements(group: str, timeout: float) -> dict:
@@ -126,7 +67,8 @@ active = Feed(snapshot('active.json'), lambda: fetch_elements('active', 30),
               ELEMENT_SECONDS, 'CelesTrak active group')
 catalogue = Feed(snapshot('active-catalogue.json'), lambda: fetch_catalogue(),
                  CATALOGUE_SECONDS, 'CelesTrak SATCAT')
-FEEDS = (active, catalogue)
+radio = Feed(snapshot('satnogs.json'), satnogs.fetch, SATNOGS_SECONDS, satnogs.SOURCE)
+FEEDS = (active, catalogue, radio)
 
 
 def merge_elements(*groups: list[dict]) -> list[dict]:
@@ -149,11 +91,30 @@ def payloads_only(elements: list[dict], objects: dict) -> list[dict]:
             if objects.get(str(norad_id(e['NORAD_CAT_ID'])), {}).get('objectType', 'PAY') == 'PAY']
 
 
+def with_satnogs(celestrak: list[dict], snapshot: dict | None, objects: dict) -> tuple[list[dict], dict]:
+    """CelesTrak's elements plus SatNOGS orbits for numbers CelesTrak lacks, payloads only.
+
+    CelesTrak wins any NORAD number both list. Radio details are kept only for
+    satellites that are published, and SatNOGS is named as the orbit's source
+    only where it supplied the orbit.
+    """
+    snapshot = snapshot or {}
+    taken = {e['NORAD_CAT_ID'] for e in celestrak}
+    extra = [e for e in snapshot.get('elements', []) if e['NORAD_CAT_ID'] not in taken]
+    elements = payloads_only(celestrak + extra, objects)
+    published = {str(e['NORAD_CAT_ID']) for e in elements}
+    radio_details = {key: ({**value, 'orbitSource': ''} if int(key) in taken else value)
+                     for key, value in snapshot.get('objects', {}).items() if key in published}
+    return elements, radio_details
+
+
 def combined() -> dict:
-    """The active group, deduplicated and without non-payloads, with SATCAT metadata."""
-    return {**active.snapshot, 'source': 'CelesTrak active group',
-            'elements': payloads_only(merge_elements(active.snapshot['elements']),
-                                      catalogue.snapshot.get('objects', {})),
+    """The active group and SatNOGS orbits, deduplicated and without non-payloads, with their metadata."""
+    elements, radio_details = with_satnogs(merge_elements(active.snapshot['elements']), radio.snapshot,
+                                           catalogue.snapshot.get('objects', {}))
+    return {**active.snapshot, 'source': f'CelesTrak active group + {satnogs.SOURCE}',
+            'elements': elements,
             'catalogue': catalogue.snapshot,
-            'groups': {'active': active.fetched_at},
+            'satnogs': {'fetchedAt': radio.fetched_at, 'source': satnogs.SOURCE, 'objects': radio_details},
+            'groups': {'active': active.fetched_at, 'satnogs': radio.fetched_at},
             'cached': active.stale}

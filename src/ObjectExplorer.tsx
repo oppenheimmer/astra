@@ -4,13 +4,64 @@ import { formatDec, formatRA } from "./projection";
 import { describeSatellite, ownerNames } from "./satellite-info";
 import { detailFact, distanceLabel, planetFacts } from "./sky";
 import { horizonAltitude } from "./terrain";
-import type { Catalogue, Site, SkyObject, Star, TerrainProfile } from "./types";
+import type { Catalogue, SatnogsMetadata, Site, SkyObject, Star, TerrainProfile } from "./types";
 import { kindLabel, SectionTitle, signature } from "./ui";
 
 const EarthOrbit = lazy(() => import("./Neighbourhood").then((module) => ({ default: module.EarthOrbit })));
 const GalaxyContext = lazy(() => import("./Neighbourhood").then((module) => ({ default: module.GalaxyContext })));
 const SolarSystem = lazy(() => import("./Neighbourhood").then((module) => ({ default: module.SolarSystem })));
 const StarNeighbourhood = lazy(() => import("./Neighbourhood").then((module) => ({ default: module.StarNeighbourhood })));
+
+const megahertz = (hertz: number) => `${(hertz / 1e6).toFixed(3)} MHz`;
+
+/** SatNOGS DB's record: what an observer can listen for, and where the orbit came from. */
+function SatnogsDetails({ satnogs }: { satnogs: SatnogsMetadata }) {
+  return (
+    <div className="satnogs-details">
+      <div className="diagram-label">
+        <span>RADIO / SATNOGS DB</span>
+        <span>{satnogs.transmitters ? `${satnogs.transmitters} LIVE TRANSMITTER${satnogs.transmitters > 1 ? "S" : ""}` : "NO LIVE TRANSMITTER"}</span>
+      </div>
+      {satnogs.downlinks.length > 0 && (
+        <ul className="downlinks" aria-label="Live downlinks">
+          {satnogs.downlinks.map((link) => (
+            <li key={`${link.frequency}-${link.mode}`}>
+              <strong>{megahertz(link.frequency)}</strong>
+              <span>{link.mode || "—"}</span>
+              {link.description && <small>{link.description}</small>}
+            </li>
+          ))}
+        </ul>
+      )}
+      <div className="object-stats">
+        <div>
+          <span>STATUS</span>
+          <strong>{satnogs.status || "Not recorded"}</strong>
+        </div>
+        {satnogs.operator && (
+          <div>
+            <span>OPERATOR</span>
+            <strong>{satnogs.operator}</strong>
+          </div>
+        )}
+        <div>
+          <span>ORBIT SOURCE</span>
+          <strong>{satnogs.orbitSource ? `SatNOGS DB / ${satnogs.orbitSource}` : "CelesTrak"}</strong>
+        </div>
+      </div>
+      <div className="satellite-sources">
+        <a href={`https://db.satnogs.org/satellite/${satnogs.id}`} target="_blank" rel="noreferrer">
+          SATNOGS DB ↗
+        </a>
+        {satnogs.website && (
+          <a href={satnogs.website} target="_blank" rel="noreferrer">
+            WEBSITE ↗
+          </a>
+        )}
+      </div>
+    </div>
+  );
+}
 
 interface Props {
   selected: SkyObject | null;
@@ -91,6 +142,7 @@ export default function ObjectExplorer(p: Props) {
                   <strong>
                     {ownerNames[selected.satellite.metadata?.owner || ""] ||
                       selected.satellite.metadata?.owner ||
+                      selected.satellite.satnogs?.countries ||
                       "Not catalogued"}
                   </strong>
                 </div>
@@ -142,6 +194,7 @@ export default function ObjectExplorer(p: Props) {
               </a>
             </div>
           )}
+          {selected.satellite?.satnogs && <SatnogsDetails satnogs={selected.satellite.satnogs} />}
           <div className="object-actions">
             <button onClick={p.onTelescope}>TELESCOPE CONTROLS ↖</button>
             <button onClick={p.onCentre}>{p.centreLabel ?? "CENTRE IN SKY VIEW"}</button>
