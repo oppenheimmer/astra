@@ -183,6 +183,47 @@ describe("Starmap desk", () => {
     expect(localStorage.getItem(STORAGE_KEYS.theme)).toBe("dark");
   });
 
+  it("shows satellites on a globe with its own camera, and returns to the unchanged sky view", async () => {
+    await mount();
+    expect(screen.getByText("FIELD 110°")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "GLOBE" }));
+    expect(screen.getByRole("button", { name: "GLOBE" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByRole("button", { name: "HORIZON" }).getAttribute("aria-pressed")).toBe("false");
+    expect(screen.getByText("EARTH ORBIT")).toBeTruthy();
+    expect(screen.getByText("CENTRE 51.5°N 0.0°W")).toBeTruthy();
+    expect(screen.getByText("FIELD 23,193 KM")).toBeTruthy();
+    expect(screen.getByText(/CLICK A SATELLITE TO EXPLORE/)).toBeTruthy();
+    const legend = await screen.findByRole("group", { name: "Satellite classes" });
+    fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
+    expect(screen.getByText("FIELD 13,916 KM")).toBeTruthy();
+    fireEvent.keyDown(window, { key: "ArrowRight" });
+    expect(screen.getByText("CENTRE 51.5°N 15.0°E")).toBeTruthy();
+    fireEvent.click(screen.getByRole("button", { name: "Reset sky view" }));
+    expect(screen.getByText("FIELD 23,193 KM")).toBeTruthy();
+
+    const stations = within(legend).getByRole("button", { name: /Space stations/ });
+    expect(stations.getAttribute("aria-pressed")).toBe("true");
+    fireEvent.click(stations);
+    expect(stations.getAttribute("aria-pressed")).toBe("false");
+
+    // A satellite found by search is brought to the middle of the globe.
+    const search = screen.getByLabelText("Search sky objects");
+    fireEvent.change(search, { target: { value: "ISS (ZARYA)" } });
+    await screen.findByRole("button", { name: /ISS \(ZARYA\)/ });
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(heading()).toBe("ISS (ZARYA)"));
+    expect(screen.queryByText("CENTRE 51.5°N 0.0°W")).toBeNull();
+    expect(screen.getByRole("button", { name: "CENTRE ON GLOBE" })).toBeTruthy();
+
+    // Anything else is found in the sky, which kept its own view.
+    fireEvent.change(search, { target: { value: "Vega" } });
+    await screen.findByRole("button", { name: /Vega/ });
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(heading()).toBe("Vega"));
+    expect(screen.queryByText("EARTH ORBIT")).toBeNull();
+    expect(screen.getByRole("button", { name: "GLOBE" }).getAttribute("aria-pressed")).toBe("false");
+  });
+
   it("applies a preset location, saves it, and follows its time zone", async () => {
     await mount();
     fireEvent.click(screen.getByRole("button", { name: /EDIT/ }));

@@ -1,4 +1,4 @@
-import { createSky, prepareSatellites } from "./sky";
+import { createSky, prepareSatellites, SATELLITE_FRAME_STRIDE } from "./sky";
 import type { Catalogue, Satellite, Site } from "./types";
 
 let satellites: Satellite[] = [];
@@ -12,11 +12,12 @@ self.onmessage = (event: MessageEvent) => {
   }
   const { time, site, siteKey } = event.data as { time: number; site: Site; siteKey: string };
   const sky = createSky(empty, satellites, new Date(time), site, false);
-  const values = new Float64Array(satellites.length * 8).fill(NaN);
+  const values = new Float64Array(satellites.length * SATELLITE_FRAME_STRIDE).fill(NaN);
   for (const o of sky.objects) {
     if (!o.satellite) continue;
-    const offset = indices.get(o.id)! * 8;
-    values.set([o.az, o.alt, o.ra, o.dec, o.range!, o.velocity!, o.sunlit ? 1 : 0, o.stale ? 1 : 0], offset);
+    const offset = indices.get(o.id)! * SATELLITE_FRAME_STRIDE;
+    values.set([o.az, o.alt, o.ra, o.dec, o.range!, o.velocity!, o.sunlit ? 1 : 0, o.stale ? 1 : 0,
+      o.ecf!.x, o.ecf!.y, o.ecf!.z], offset);
   }
   self.postMessage({ time, siteKey, values }, { transfer: [values.buffer] });
 };

@@ -85,6 +85,9 @@ export const ownerNames: Record<string, string> = {
   CA: "Canada",
   IND: "India",
 };
+/** A well-known mission, worth a standing label where space allows. */
+export const isDocumentedMission = (satellite: Satellite) =>
+  String(satellite.elements.NORAD_CAT_ID) in missions;
 export function describeSatellite(satellite: Satellite): Mission {
   if (satellite.metadata?.objectType === "R/B")
     return {

@@ -81,7 +81,7 @@
   position: absolute;
   top: 0;
   left: 0;
-  width: min(300px, calc(100% - 222px));
+  width: min(300px, calc(100% - 272px));
   height: 27px;
   margin: 0;
   background: var(--paper);
@@ -294,7 +294,7 @@
     bottom: 75px;
   }
   .search-box {
-    width: calc(100% - 222px);
+    width: calc(100% - 272px);
   }
   .search-box kbd {
     display: none;
@@ -497,7 +497,7 @@
     font-size: 10px;
   }
   .search-box {
-    width: calc(100% - 214px);
+    width: calc(100% - 256px);
   }
   .search-box kbd {
     display: none;
@@ -725,4 +725,60 @@
   .brand {
     align-items: flex-start;
   }
+}
+
+/* Globe: satellites around a wireframe Earth. Each legend row also toggles its class. */
+.globe-legend {
+  position: absolute;
+  left: 0;
+  bottom: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  z-index: 2;
+  background: color-mix(in srgb, var(--paper) 85%, transparent);
+}
+.globe-legend button {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 0;
+  padding: 2px 6px 2px 0;
+  border: 0;
+  font-size: 10px;
+  color: var(--muted);
+  text-align: left;
+}
+.globe-legend button:hover {
+  background: transparent;
+  color: var(--ink);
+}
+.globe-legend button[aria-pressed="false"] {
+  opacity: 0.4;
+  text-decoration: line-through;
+}
+.globe-legend svg {
+  width: 12px;
+  height: 12px;
+  flex: none;
+}
+.globe-legend .count {
+  min-width: 46px;
+  font-size: 10px;
+  text-align: right;
+}
+.globe-stage .zoom-controls {
+  bottom: 46px;
+}
+/* A chart loaded on demand fills the map area; its status note sits mid-chart. */
+.deferred-chart {
+  position: absolute;
+  inset: 0;
+}
+.deferred-chart > .small-note {
+  position: absolute;
+  top: 45%;
+  left: 0;
+  right: 0;
+  text-align: center;
 }

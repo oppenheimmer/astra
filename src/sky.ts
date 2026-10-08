@@ -4,6 +4,7 @@ import { describeSatellite } from "./satellite-info";
 import { starPosition } from "./star-catalogue";
 import type {
   Catalogue,
+  EarthFixed,
   Satellite,
   SatelliteData,
   Site,
@@ -199,6 +200,11 @@ export function horizontalToEquatorial(
  */
 export const SATELLITE_STALE_DAYS = 1.5;
 export const SATELLITE_MAX_DAYS = 3;
+/**
+ * Values per satellite in a worker frame: az, alt, ra, dec, range, velocity,
+ * sunlit, stale, then the Earth-fixed x, y, z used by the globe.
+ */
+export const SATELLITE_FRAME_STRIDE = 11;
 
 /** Days between an element set's epoch and the observing time, in either direction. */
 export function epochAgeDays(epoch: string, date: Date) {
@@ -228,7 +234,7 @@ export function prepareSatellites(data: SatelliteData): Satellite[] {
   });
 }
 type SatelliteLook = { az: number; alt: number; range: number; height: number;
-  lat: number; lon: number; velocity: number; sunlit: boolean };
+  lat: number; lon: number; velocity: number; sunlit: boolean; ecf: EarthFixed };
 export function satellitePosition(sat: Satellite, date: Date, site: Site, sunVector?: A.Vector): SatelliteLook | null;
 export function satellitePosition(sat: Satellite, date: Date, site: Site, sunVector: A.Vector | undefined,
   frame: ReturnType<typeof satelliteFrame>): (Omit<SatelliteLook, "height" | "lat" | "lon"> & Partial<Pick<SatelliteLook, "height" | "lat" | "lon">>) | null;
@@ -287,6 +293,7 @@ export function satellitePosition(
       lon: geo ? geo.longitude / RAD : undefined,
       velocity: Math.hypot(pv.velocity.x, pv.velocity.y, pv.velocity.z),
       sunlit: proj >= 0 || perpendicular > 6378,
+      ecf,
     };
   } catch {
     return null;
@@ -491,6 +498,7 @@ export function createSky(
       velocity: p.velocity,
       sunlit: p.sunlit,
       stale: age > SATELLITE_STALE_DAYS,
+      ecf: p.ecf,
     });
   }
   const lines = catalogue.lines.features.map((f) => ({

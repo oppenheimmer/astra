@@ -1,5 +1,6 @@
 import { startTransition, useEffect, useMemo, useRef, useState } from "react";
 import { describeSatellite } from "./satellite-info";
+import { SATELLITE_FRAME_STRIDE } from "./sky";
 import type { Satellite, Site, SkyObject } from "./types";
 
 type Request = { time: number; site: Site; siteKey: string };
@@ -29,7 +30,7 @@ export function useSatelliteSky(satellites: Satellite[], time: number, site: Sit
     };
     worker.onmessage = (event: MessageEvent<Omit<Frame, "catalogue">>) => {
       busy = false;
-      if (event.data.values.length !== satellites.length * 8) { setFailed(true); worker.terminate(); send.current = null; return; }
+      if (event.data.values.length !== satellites.length * SATELLITE_FRAME_STRIDE) { setFailed(true); worker.terminate(); send.current = null; return; }
       startTransition(() => setFrame({ ...event.data, catalogue: satellites }));
       if (pending) { const request = pending; pending = null; dispatch(request); }
     };
@@ -45,7 +46,7 @@ export function useSatelliteSky(satellites: Satellite[], time: number, site: Sit
     if (!current) return EMPTY;
     const result: SkyObject[] = [], v = current.values;
     for (let i = 0; i < satellites.length; i++) {
-      const offset = i * 8;
+      const offset = i * SATELLITE_FRAME_STRIDE;
       if (!Number.isFinite(v[offset])) continue;
       const s = satellites[i];
       result.push({ id: s.id, name: s.name, kind: "satellite", satellite: s,
@@ -53,6 +54,7 @@ export function useSatelliteSky(satellites: Satellite[], time: number, site: Sit
         az: v[offset], alt: v[offset + 1], ra: v[offset + 2], dec: v[offset + 3],
         range: v[offset + 4], distance: v[offset + 4], velocity: v[offset + 5],
         sunlit: !!v[offset + 6], stale: !!v[offset + 7],
+        ecf: { x: v[offset + 8], y: v[offset + 9], z: v[offset + 10] },
       });
     }
     return result;

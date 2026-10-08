@@ -23,6 +23,8 @@ interface Props {
   site: Site;
   onTelescope: () => void;
   onCentre: () => void;
+  /** Where the centre action points the chart, e.g. the globe for a satellite. */
+  centreLabel?: string;
 }
 
 /** The right rail: facts, coordinates and a context diagram for the selected object. */
@@ -142,7 +144,7 @@ export default function ObjectExplorer(p: Props) {
           )}
           <div className="object-actions">
             <button onClick={p.onTelescope}>TELESCOPE CONTROLS ↖</button>
-            <button onClick={p.onCentre}>CENTRE IN SKY VIEW</button>
+            <button onClick={p.onCentre}>{p.centreLabel ?? "CENTRE IN SKY VIEW"}</button>
           </div>
           <div className="coordinate-row">
             <span>RA {formatRA(selected.ra)}</span>

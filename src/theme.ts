@@ -1,3 +1,4 @@
+import type { OrbitClass } from "./globe";
 import { clamp } from "./projection";
 
 export type Theme = "light" | "dark";
@@ -42,6 +43,21 @@ export const skyPalette = {
     moon: "#909dab",
     label: "rgba(34,39,46,.96)",
   },
+};
+
+export type SatelliteShape = "dot" | "square" | "ring" | "diamond" | "triangle" | "station";
+/**
+ * Globe symbols borrow the chart's own inks and are told apart by shape too, so
+ * the classes stay distinct for readers who cannot separate the colours. The
+ * Starlink shell is the quietest because it is by far the most numerous.
+ */
+export const satelliteSymbols: Record<OrbitClass, { shape: SatelliteShape; size: number; color: keyof typeof skyPalette.light }> = {
+  station: { shape: "station", size: 3.2, color: "satelliteBracket" },
+  leo: { shape: "square", size: 2.4, color: "satelliteDot" },
+  starlink: { shape: "dot", size: 1.8, color: "dim" },
+  meo: { shape: "ring", size: 4, color: "ink" },
+  geo: { shape: "diamond", size: 4.2, color: "object" },
+  heo: { shape: "triangle", size: 4.4, color: "muted" },
 };
 
 /** Display symbols, enlarged at close zoom so even G 14 stays legible. */

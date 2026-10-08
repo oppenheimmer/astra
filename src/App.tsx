@@ -11,6 +11,7 @@ import {
 } from "./sky";
 import { clamp, compass, personalView, wrap } from "./projection";
 import SkyMap from "./SkyMap";
+import { beneath, EARTH_RADIUS_KM, homeCamera, wrapLongitude, zoomCamera, type GlobeCamera } from "./globe";
 import type { Theme } from "./theme";
 import { isMonospaceFont, MONOSPACE_FONTS } from "./fonts";
 import { localDateTime, localDay, timeZoneAt, zoneLabel } from "./local-time";
@@ -43,6 +44,7 @@ import AboutDialog from "./AboutDialog";
 import LocationDialog from "./LocationDialog";
 import ObjectExplorer from "./ObjectExplorer";
 const TelescopePanel = lazy(() => import("./TelescopePanel"));
+const GlobeMap = lazy(() => import("./GlobeMap"));
 import TimeDeck from "./TimeDeck";
 
 const LAYER_KEYS: LayerKey[] = ["star", "planet", "galaxy", "satellite", "constellation", "highlights", "grid"];
@@ -81,6 +83,13 @@ export default function App() {
   const { time } = clock;
   const [view, setView] = useState<View>(HOME_VIEW),
     [layers, setLayers] = useState<Layers>(ALL_LAYERS);
+  // The globe keeps its own camera, so the sky view is unchanged on the way back.
+  const [globe, setGlobe] = useState(false);
+  const [globeCamera, setGlobeCamera] = useState<GlobeCamera>(() => homeCamera(site));
+  useEffect(
+    () => setGlobeCamera((camera) => ({ ...homeCamera(site), zoom: camera.zoom })),
+    [site.lat, site.lon],
+  );
   const [selectedId, setSelectedId] = useState<string | null>(null),
     [pinnedStar, setPinnedStar] = useState<Star | null>(null),
     [query, setQuery] = useState(""),
@@ -166,7 +175,11 @@ export default function App() {
   }, [toast]);
   useWorkspaceShortcuts({
     workspace, modalOpen: siteOpen || about, zoom,
-    turn: view.mode === "personal" ? (degrees) => setView((v) => ({ ...v, az: wrap(v.az + degrees) })) : undefined,
+    turn: globe
+      ? (degrees) => setGlobeCamera((camera) => ({ ...camera, lon: wrapLongitude(camera.lon + degrees) }))
+      : view.mode === "personal"
+        ? (degrees) => setView((v) => ({ ...v, az: wrap(v.az + degrees) }))
+        : undefined,
     stop: sim.stop,
     search: () => {
       document.getElementById("object-search")?.focus();
@@ -183,6 +196,7 @@ export default function App() {
   });
 
   function zoom(factor: number) {
+    if (globe) return setGlobeCamera((camera) => zoomCamera(camera, 1 / factor));
     setView((v) =>
       v.mode === "personal"
         ? personalView(v, v.fov * factor)
@@ -190,7 +204,7 @@ export default function App() {
     );
   }
   const resetView = () =>
-    setView((v) => (v.mode === "personal" ? personalView(v, 90) : { ...v, fov: 110, alt: 42, roll: 0, mode: "horizon" }));
+    globe ? setGlobeCamera(homeCamera(site)) : setView((v) => (v.mode === "personal" ? personalView(v, 90) : { ...v, fov: 110, alt: 42, roll: 0, mode: "horizon" }));
   const zoomToDeepField = () =>
     setView((v) =>
       v.mode === "personal"
@@ -211,6 +225,11 @@ export default function App() {
           },
     );
   }
+  /** Turn the globe to put a satellite in the middle, at the current zoom. */
+  function centreGlobe(o: SkyObject) {
+    const point = beneath(o.ecf!);
+    setGlobeCamera((camera) => ({ ...camera, lat: point.lat, lon: point.lon }));
+  }
   function select(o: SkyObject, center = false, showDetails = true) {
     setPinnedStar(o.star?.source === "Gaia DR3" ? o.star : null);
     setSelectedId(o.id);
@@ -218,6 +237,9 @@ export default function App() {
     setSearchOpen(false);
     if (showDetails) setMobilePanel("object");
     if (center) {
+      if (globe && o.ecf) return centreGlobe(o);
+      // Only satellites are on the globe; anything else is found in the sky.
+      setGlobe(false);
       centreView(o, 85, 20);
       if (o.alt < 0) setToast(`${o.name} is below your horizon at this time.`);
     }
@@ -236,6 +258,7 @@ export default function App() {
   }
   function zoomToTelescopeField() {
     const h = sim.horizontal;
+    setGlobe(false);
     if (h)
       setView((v) =>
         v.mode === "personal"
@@ -508,6 +531,7 @@ export default function App() {
               setMobilePanel("sky");
             }}
             onPlaceTarget={() => {
+              setGlobe(false);
               setAiming(!aiming);
               setMobilePanel("sky");
             }}
@@ -519,17 +543,31 @@ export default function App() {
             ABOUT / DATA & CONTROLS ↗
           </button>
         </aside>
-        <section className={`sky-stage ${view.mode === "personal" ? "personal-stage" : ""}`}>
+        <section className={`sky-stage ${globe ? "globe-stage" : view.mode === "personal" ? "personal-stage" : ""}`}>
           <div className="stage-top">
             <div className="view-switch" role="group" aria-label="Sky projection">
-              <button className={view.mode === "personal" ? "active" : ""} aria-pressed={view.mode === "personal"} onClick={() => setView((v) => personalView(v, 90))}>
-                OBSERVER VIEW
-              </button>
-              <button className={view.mode === "horizon" ? "active" : ""} aria-pressed={view.mode === "horizon"} onClick={() => setView((v) => ({ ...v, mode: "horizon" }))}>
-                HORIZON
-              </button>
-              <button className={view.mode === "allsky" ? "active" : ""} aria-pressed={view.mode === "allsky"} onClick={() => setView((v) => ({ ...v, mode: "allsky" }))}>
-                ALL SKY
+              {([
+                ["personal", "OBSERVER VIEW", (v: View): View => personalView(v, 90)],
+                ["horizon", "HORIZON", (v: View): View => ({ ...v, mode: "horizon" })],
+                ["allsky", "ALL SKY", (v: View): View => ({ ...v, mode: "allsky" })],
+              ] as const).map(([mode, label, next]) => {
+                const active = !globe && view.mode === mode;
+                return (
+                  <button
+                    key={mode}
+                    className={active ? "active" : ""}
+                    aria-pressed={active}
+                    onClick={() => {
+                      setGlobe(false);
+                      setView(next);
+                    }}
+                  >
+                    {label}
+                  </button>
+                );
+              })}
+              <button className={globe ? "active" : ""} aria-pressed={globe} onClick={() => setGlobe(true)}>
+                GLOBE
               </button>
             </div>
           </div>
@@ -569,7 +607,23 @@ export default function App() {
             )}
           </div>
           <div className="map-area">
-            {sky ? (
+            {sky && globe ? (
+              <DeferredPanel label="Globe" className="deferred-chart">
+              <GlobeMap
+                theme={theme}
+                fontFamily={fontFamily}
+                fontRevision={fontRevision}
+                sky={sky}
+                camera={globeCamera}
+                setCamera={setGlobeCamera}
+                layers={layers}
+                orbits={satelliteTrails}
+                showHighlights={highlight}
+                selected={selected}
+                select={(o) => select(o)}
+              />
+              </DeferredPanel>
+            ) : sky ? (
               <SkyMap
                 theme={theme}
                 fontFamily={fontFamily}
@@ -597,17 +651,28 @@ export default function App() {
                 {loadError && <button onClick={() => window.location.reload()}>RETRY</button>}
               </div>
             )}
-            <div className="map-readout">
-              <span className="sky-condition">
-                {sky ? (sky.sunAltitude >= 0 ? "DAYLIGHT" : sky.sunAltitude > -18 ? "TWILIGHT" : "NIGHT SKY") : "ACQUIRING SKY"}
-              </span>
-              <span>
-                {view.mode === "personal" ? "FACING" : "AZ"} {view.az.toFixed(1)}°
-              </span>
-              {view.mode !== "personal" && <span>ALT {view.alt.toFixed(1)}°</span>}
-              <span>FIELD {view.mode === "allsky" ? "180" : view.fov.toFixed(view.fov < 10 ? 2 : 0)}°</span>
-            </div>
-            {view.mode === "personal" && (
+            {globe ? (
+              <div className="map-readout">
+                <span className="sky-condition">EARTH ORBIT</span>
+                <span>
+                  CENTRE {Math.abs(globeCamera.lat).toFixed(1)}°{hemisphere(globeCamera.lat, "N", "S")}{" "}
+                  {Math.abs(globeCamera.lon).toFixed(1)}°{hemisphere(globeCamera.lon, "E", "W")}
+                </span>
+                <span>FIELD {Math.round((2 * EARTH_RADIUS_KM) / globeCamera.zoom).toLocaleString("en-GB")} KM</span>
+              </div>
+            ) : (
+              <div className="map-readout">
+                <span className="sky-condition">
+                  {sky ? (sky.sunAltitude >= 0 ? "DAYLIGHT" : sky.sunAltitude > -18 ? "TWILIGHT" : "NIGHT SKY") : "ACQUIRING SKY"}
+                </span>
+                <span>
+                  {view.mode === "personal" ? "FACING" : "AZ"} {view.az.toFixed(1)}°
+                </span>
+                {view.mode !== "personal" && <span>ALT {view.alt.toFixed(1)}°</span>}
+                <span>FIELD {view.mode === "allsky" ? "180" : view.fov.toFixed(view.fov < 10 ? 2 : 0)}°</span>
+              </div>
+            )}
+            {!globe && view.mode === "personal" && (
               <div className="heading-controls" role="group" aria-label="Direction you are facing">
                 <button aria-label="Turn left 15 degrees" onClick={() => setView((v) => ({ ...v, az: wrap(v.az - 15) }))}>
                   ←
@@ -620,7 +685,7 @@ export default function App() {
                 </button>
               </div>
             )}
-            {view.mode === "personal" && (
+            {!globe && view.mode === "personal" && (
               <div className="terrain-controls">
                 <button aria-pressed={terrainEnabled} onClick={() => setTerrainEnabled((v) => !v)}>
                   MOUNTAINS {terrainEnabled ? "ON" : "OFF"}
@@ -640,13 +705,15 @@ export default function App() {
                 ↺
               </button>
             </div>
-            {sky && sky.sunAltitude > 0 && (
+            {!globe && sky && sky.sunAltitude > 0 && (
               <div className="daylight-note">SUN {sky.sunAltitude.toFixed(0)}° ABOVE HORIZON / STARS SHOWN FOR PLANNING</div>
             )}
           </div>
           <div className="map-caption">
             <span>
-              {aiming
+              {globe
+                ? "DRAG TO TURN · SCROLL TO ZOOM · CLICK A SATELLITE TO EXPLORE"
+                : aiming
                 ? "CLICK OR DRAG TO PLACE A SLEW TARGET"
                 : tel.connected
                   ? "DRAG THE RETICLE TO SLEW · SCROLL TO ZOOM"
@@ -669,8 +736,13 @@ export default function App() {
             setControlPanel("telescope");
             setMobilePanel("controls");
           }}
+          centreLabel={globe && selected?.ecf ? "CENTRE ON GLOBE" : undefined}
           onCentre={() => {
-            if (selected) centreView(selected, 89, 12);
+            if (selected && globe && selected.ecf) centreGlobe(selected);
+            else if (selected) {
+              setGlobe(false);
+              centreView(selected, 89, 12);
+            }
             setMobilePanel("sky");
           }}
         />

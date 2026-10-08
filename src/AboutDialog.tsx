@@ -36,7 +36,9 @@ export default function AboutDialog({ fetchedAt, onClose }: Props) {
         <h3>AT THE DESK</h3>
         <p>
           Drag to look around. Observer view shows 45° either side of your heading, from horizon to
-          zenith; its curved shape keeps the Sun and Moon round. Drag or use ←/→ to turn. Scroll,
+          zenith; its curved shape keeps the Sun and Moon round. Globe shows the tracked satellites
+          around Earth: drag to turn it, zoom out to the geostationary ring, and use the legend to
+          hide a class. Drag or use ←/→ to turn. Scroll,
           pinch or use +/− to zoom; reset restores the full view. Click a point or search by name.
           Connect the simulator, select an object and slew to it, drag the telescope reticle to a new
           patch of sky, or use Place target. The larger dashed reticle locates the telescope; the

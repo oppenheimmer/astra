@@ -58,6 +58,14 @@ export interface SkyObject {
   velocity?: number;
   sunlit?: boolean;
   stale?: boolean;
+  /** Satellites only: the Earth-fixed position at the sky's time, for the globe. */
+  ecf?: EarthFixed;
+}
+/** Earth-centred, Earth-fixed position in kilometres; it rotates with the planet. */
+export interface EarthFixed {
+  x: number;
+  y: number;
+  z: number;
 }
 /** Validated and normalized CelesTrak elements used by the SGP4 workers. */
 export interface OrbitalElements {
