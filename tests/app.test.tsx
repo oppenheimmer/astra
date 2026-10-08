@@ -196,7 +196,8 @@ describe("Starmap desk", () => {
     expect(screen.getByText("CENTRE 51.5°N 0.0°W")).toBeTruthy();
     expect(screen.getByText("FIELD 23,193 KM")).toBeTruthy();
     expect(screen.getByText(/CLICK A SATELLITE TO EXPLORE/)).toBeTruthy();
-    const legend = await screen.findByRole("group", { name: "Satellite classes" });
+    // The globe is a lazy chunk; a cold transform of it and its coastlines can take seconds.
+    const legend = await screen.findByRole("group", { name: "Satellite classes" }, { timeout: 15000 });
     fireEvent.click(screen.getByRole("button", { name: "Zoom in" }));
     expect(screen.getByText("FIELD 13,916 KM")).toBeTruthy();
     fireEvent.keyDown(window, { key: "ArrowRight" });

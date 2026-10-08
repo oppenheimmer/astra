@@ -119,7 +119,8 @@ describe("Sky coordinates and catalogue", () => {
       25.05,
       0,
     );
-  });
+    // About a second alone, but several times that while the whole suite runs in parallel.
+  }, 20000);
   it("predicts a plausible ISS position at its epoch and hides unsupported historical predictions", () => {
     const iss = satellites.find((s) => s.name.includes("ISS"))!;
     expect(iss).toBeTruthy();
