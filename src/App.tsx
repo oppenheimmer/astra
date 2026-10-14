@@ -162,8 +162,11 @@ export default function App() {
     () => (sky ? visibleHighlights(sky, highlightLimit, layers, starMagnitude) : []),
     [sky, highlightLimit, layers, starMagnitude],
   );
-  const sim = useTelescopeSimulator({ sky, date, site, heading: view, notify: setToast });
+  // On the globe the sky view is out of sight; a selected satellite above the horizon is where to start.
+  const heading = globe && selected?.satellite && selected.alt > 0 ? selected : view;
+  const sim = useTelescopeSimulator({ sky, date, site, heading, notify: setToast });
   const { tel, aiming, setAiming } = sim;
+  const scopeTarget = tel.targetId ? sky?.byId.get(tel.targetId)?.name : undefined;
 
   // Open on the brightest named star well above the horizon, once the catalogue is in.
   const initialized = useRef(false);
@@ -274,6 +277,18 @@ export default function App() {
     }
     const eq = horizontalToEquatorial(az, alt, date, site);
     sim.slew(eq.ra, eq.dec);
+  }
+  /** On the globe a target is a satellite: a click on empty space gives no direction from the observer. */
+  function aimAtSatellite(o: SkyObject | null) {
+    if (!o) return setToast("Choose a satellite to slew to. To aim anywhere in the sky, use a sky view.");
+    select(o, false, false);
+    sim.slew(o.ra, o.dec, o.id);
+  }
+  function centreGlobeOnTelescope() {
+    const target = tel.targetId ? sky?.byId.get(tel.targetId) : undefined;
+    if (target?.ecf) centreGlobe(target);
+    else setGlobeCamera((camera) => ({ ...homeCamera(site), zoom: camera.zoom }));
+    setMobilePanel("sky");
   }
   function zoomToTelescopeField() {
     const h = sim.horizontal;
@@ -570,11 +585,11 @@ export default function App() {
               setMobilePanel("sky");
             }}
             onPlaceTarget={() => {
-              setGlobe(false);
               setAiming(!aiming);
               setMobilePanel("sky");
             }}
             onZoomToField={zoomToTelescopeField}
+            onCentreGlobe={globe ? centreGlobeOnTelescope : undefined}
           />
             </DeferredPanel>
           )}
@@ -659,8 +674,12 @@ export default function App() {
                 orbits={satelliteTrails}
                 showHighlights={highlight}
                 selected={selected}
-                select={(o) => select(o)}
+                // In the Telescope tab, phones stay on the globe so a second tap can slew.
+                select={controlPanel === "telescope" ? (o) => select(o, false, false) : (o) => select(o)}
+                onDoubleSelect={controlPanel === "telescope" ? (o) => sim.slew(o.ra, o.dec, o.id) : undefined}
                 onClear={clearSelection}
+                telescope={tel}
+                aim={aiming ? aimAtSatellite : undefined}
               />
               </DeferredPanel>
             ) : sky ? (
@@ -699,6 +718,16 @@ export default function App() {
                   {Math.abs(globeCamera.lon).toFixed(1)}°{hemisphere(globeCamera.lon, "E", "W")}
                 </span>
                 <span>FIELD {fieldLabel((2 * EARTH_RADIUS_KM) / globeCamera.zoom)}</span>
+                {sim.horizontal && (
+                  <span>
+                    SCOPE AZ {sim.horizontal.az.toFixed(1)}° ALT {sim.horizontal.alt.toFixed(1)}°
+                  </span>
+                )}
+                {sim.horizontal && scopeTarget && (
+                  <span>
+                    {tel.moving ? "SLEWING TO" : "TRACKING"} {scopeTarget.toUpperCase()}
+                  </span>
+                )}
               </div>
             ) : (
               <div className="map-readout">
@@ -752,7 +781,11 @@ export default function App() {
           <div className="map-caption">
             <span>
               {globe
-                ? "DRAG TO TURN · SCROLL TO ZOOM · CLICK A SATELLITE TO EXPLORE"
+                ? aiming
+                  ? "CLICK A SATELLITE TO SLEW THE TELESCOPE"
+                  : controlPanel === "telescope" && tel.connected
+                    ? "DOUBLE-CLICK A SATELLITE TO SLEW · DRAG TO TURN · SCROLL TO ZOOM"
+                    : "DRAG TO TURN · SCROLL TO ZOOM · CLICK A SATELLITE TO EXPLORE"
                 : aiming
                 ? "CLICK OR DRAG TO PLACE A SLEW TARGET"
                 : tel.connected

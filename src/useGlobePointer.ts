@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState, type Dispatch, type PointerEvent, type RefObject, type SetStateAction } from "react";
 import { dragCamera, zoomCamera, type GlobeCamera } from "./globe";
 import type { SkyObject } from "./types";
+import { useDoubleTap } from "./useDoubleTap";
 
 /** A deep-space craft as drawn: hover shows it, but it is not a selectable sky object. */
 export interface CraftHit {
@@ -58,6 +59,10 @@ interface Options {
   select: (object: SkyObject) => void;
   /** Called for a click or tap on empty space, when that has a meaning. */
   clear?: () => void;
+  /** A second click or tap on the same satellite in quick succession; omitted where double-click has no action. */
+  onDoubleSelect?: (object: SkyObject) => void;
+  /** While placing a telescope target, a click goes here instead: the satellite, or null for empty space. */
+  aim?: (object: SkyObject | null) => void;
 }
 
 /** Turn the globe by dragging, zoom with the wheel or a pinch, and pick satellites by click or tap. */
@@ -77,6 +82,7 @@ export function useGlobePointer(
     objectId?: string;
   } | null>(null);
   const pointers = useRef(new Map<number, { x: number; y: number }>());
+  const doubleTap = useDoubleTap();
   useEffect(() => setHover(null), [p.camera]);
   useEffect(() => {
     const node = host.current;
@@ -152,12 +158,20 @@ export function useGlobePointer(
     }
     setDragging(false);
     drag.current = null;
-    if (!d || d.moved) return;
+    if (!d || d.moved) return doubleTap.reset();
     const object =
       hits.current?.objects.find((o) => o.id === d.objectId) ??
       hitGlobe(hits.current, pos.x, pos.y, tolerance(e));
-    if (object) p.select(object);
-    else p.clear?.();
+    if (p.aim) {
+      doubleTap.reset();
+      p.aim(object ?? null);
+    } else if (object) {
+      p.select(object);
+      if (doubleTap.tap(object.id, pos)) p.onDoubleSelect?.(object);
+    } else {
+      doubleTap.reset();
+      p.clear?.();
+    }
   };
   const pointerCancel = () => {
     drag.current = null;

@@ -283,3 +283,28 @@ export function sightLine(
     for (let k = 0; k < 3; k++) path[i * 3 + k] = a[k] + ((b[k] - a[k]) * i) / samples;
   return path;
 }
+
+/**
+ * The telescope's pointing ray from the observer, sampled in Earth radii out to
+ * `reach` radii. Below the horizon it runs down into the planet, as a mount
+ * still tracking a satellite that has set would point.
+ */
+export function boresight(
+  site: { lat: number; lon: number },
+  az: number,
+  alt: number,
+  reach: number,
+  samples = 32,
+): Float64Array {
+  // East, north and up at the observer: the axes of a camera straight above them.
+  const { right: east, up: north, out: up } = globeFrame({ lat: site.lat, lon: site.lon, zoom: 1 }, 0, 0);
+  const e = Math.cos(alt * RAD) * Math.sin(az * RAD),
+    n = Math.cos(alt * RAD) * Math.cos(az * RAD),
+    u = Math.sin(alt * RAD);
+  const path = new Float64Array((samples + 1) * 3);
+  for (let i = 0; i <= samples; i++) {
+    const d = (reach * i) / samples;
+    for (let k = 0; k < 3; k++) path[i * 3 + k] = up[k] + d * (e * east[k] + n * north[k] + u * up[k]);
+  }
+  return path;
+}

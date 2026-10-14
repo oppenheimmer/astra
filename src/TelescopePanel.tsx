@@ -15,6 +15,8 @@ interface Props {
   onSlewToSelected: () => void;
   onPlaceTarget: () => void;
   onZoomToField: () => void;
+  /** On the globe: turn it to the telescope's satellite, or to the observer it points out from. */
+  onCentreGlobe?: () => void;
 }
 
 /** Connection, motors, slewing, manual pointing and the angular field of the simulated mount. */
@@ -56,7 +58,11 @@ export default function TelescopePanel(p: Props) {
       <div className="telescope-target">
         <span className="eyebrow">SELECTED TARGET</span>
         <strong title={p.selected?.name}>{p.selected?.name || "Select an object on the map"}</strong>
-        {p.selected && <small>{p.selected.alt.toFixed(1)}° ABOVE HORIZON</small>}
+        {p.selected && (
+          <small>
+            {Math.abs(p.selected.alt).toFixed(1)}° {p.selected.alt < 0 ? "BELOW" : "ABOVE"} HORIZON
+          </small>
+        )}
       </div>
       <button
         className="telescope-slew primary"
@@ -72,6 +78,11 @@ export default function TelescopePanel(p: Props) {
         <button disabled={!tel.connected} onClick={p.onZoomToField}>
           ZOOM TO FIELD ↗
         </button>
+        {p.onCentreGlobe && (
+          <button disabled={!tel.connected} onClick={p.onCentreGlobe}>
+            ◎ CENTRE ON SCOPE
+          </button>
+        )}
       </div>
       <div className="telescope-readout">
         <span>RA {formatRA(tel.ra)}</span>

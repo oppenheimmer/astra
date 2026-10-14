@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import { gstime } from "satellite.js";
 import {
+  boresight,
   earthFixedOrbit,
   EARTH_RADIUS_KM,
   globeFrame,
@@ -17,6 +18,7 @@ import {
   traceSurface,
   unitVector,
   type GlobeCamera,
+  type GlobeFrame,
   type OrbitClass,
 } from "./globe";
 import { fetchDeepSpace } from "./api";
@@ -24,8 +26,9 @@ import { AU_KM, craftPosition, earthFixedAt, moonOrbit, moonPosition, NEAR_SPACE
 import { globeCoastlines } from "./globe-coastlines";
 import { clamp } from "./projection";
 import { isDocumentedMission } from "./satellite-info";
+import { equatorialToHorizontal } from "./sky";
 import { deepSpaceSymbol, globePalette, satelliteSymbols, skyPalette, type SatelliteShape, type Theme } from "./theme";
-import type { DeepSpaceData, Layers, Satellite, Sky, SkyObject } from "./types";
+import type { DeepSpaceData, Layers, Satellite, Sky, SkyObject, Telescope } from "./types";
 import { useGlobePointer, type CraftHit, type GlobeHits } from "./useGlobePointer";
 
 interface Props {
@@ -43,6 +46,12 @@ interface Props {
   select: (o: SkyObject) => void;
   /** Leave the selected satellite and show every satellite again. */
   onClear: () => void;
+  /** The simulated mount, drawn as a line out from the observer while it is connected. */
+  telescope: Telescope;
+  /** A second click or tap on the same satellite in quick succession. */
+  onDoubleSelect?: (o: SkyObject) => void;
+  /** Set while placing a telescope target: a click picks the satellite, or null for empty space. */
+  aim?: (o: SkyObject | null) => void;
 }
 type Orbit = { satellite: Satellite; time: number; path: Float64Array | null };
 
@@ -159,12 +168,100 @@ export function SymbolSwatch({ shape, color }: { shape: SatelliteShape; color: s
   );
 }
 
+/**
+ * The telescope as a line out from the observer along where it points. A
+ * satellite target ends the line at its distance, under a reticle; any other
+ * target lies far beyond the chart. A slew adds a faint line to where it is going.
+ */
+function drawTelescope(
+  c: CanvasRenderingContext2D,
+  f: GlobeFrame,
+  t: Telescope,
+  sky: Sky,
+  size: { w: number; h: number },
+  colors: (typeof skyPalette)[Theme],
+  halo: string,
+  fontFamily: string,
+) {
+  const target = t.targetId ? sky.byId.get(t.targetId) : undefined;
+  // Long enough to leave the chart from wherever the observer is on it.
+  const reach = target?.ecf && target.range
+    ? target.range / EARTH_RADIUS_KM
+    : (2 * Math.hypot(size.w, size.h)) / Math.max(f.radius, 1e-3) + 2;
+  const ray = (ra: number, dec: number) => {
+    const h = equatorialToHorizontal(ra, dec, sky.time, sky.site);
+    return { alt: h.alt, path: boresight(sky.site, h.az, h.alt, reach) };
+  };
+  /** The farthest point of a line that is in view, and whether it is the line's own end. */
+  const farthest = (path: Float64Array) => {
+    for (let i = path.length - 3; i >= 0; i -= 3) {
+      const q = projectGlobe(f, path[i], path[i + 1], path[i + 2]);
+      if (!q.hidden && q.x >= 0 && q.y >= 0 && q.x <= size.w && q.y <= size.h)
+        return { x: q.x, y: q.y, end: i === path.length - 3 };
+    }
+    return null;
+  };
+  const stroke = (path: Float64Array, color: string, width: number, dash: number[]) => {
+    c.beginPath();
+    traceSpace(c, path, f, 1);
+    c.setLineDash(dash);
+    c.strokeStyle = halo;
+    c.lineWidth = width + 2;
+    c.stroke();
+    c.strokeStyle = color;
+    c.lineWidth = width;
+    c.stroke();
+    c.setLineDash([]);
+  };
+
+  if (t.moving) {
+    const goal = ray(t.targetRa, t.targetDec);
+    stroke(goal.path, colors.dim, 1, [2, 5]);
+    const q = farthest(goal.path);
+    if (q?.end) {
+      c.strokeStyle = colors.dim;
+      c.strokeRect(q.x - 5, q.y - 5, 10, 10);
+    }
+  }
+  const scope = ray(t.ra, t.dec);
+  // Still tracking a satellite that has set, the mount points down into the planet; the line goes dashed.
+  stroke(scope.path, colors.ink, 1.2, scope.alt < 0 ? [4, 3] : []);
+  const q = farthest(scope.path);
+  if (!q) return;
+  c.strokeStyle = colors.ink;
+  c.lineWidth = 1.2;
+  if (q.end) {
+    c.setLineDash([2, 3]);
+    c.beginPath();
+    c.arc(q.x, q.y, 16, 0, Math.PI * 2);
+    c.stroke();
+    c.setLineDash([]);
+    c.beginPath();
+    for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) {
+      c.moveTo(q.x + dx * 19, q.y + dy * 19);
+      c.lineTo(q.x + dx * 25, q.y + dy * 25);
+    }
+    c.stroke();
+  }
+  const label = `${t.moving ? "SLEWING" : "TELESCOPE"}${scope.alt < 0 ? " · BELOW HORIZON" : ""}`;
+  c.font = `11px ${fontFamily}`;
+  c.textBaseline = "middle";
+  const width = c.measureText(label).width + 8;
+  const x = clamp(q.end ? q.x + 22 : q.x + 8, 4, size.w - width - 4),
+    y = clamp(q.end ? q.y + 26 : q.y - 11, 12, size.h - 12);
+  c.fillStyle = colors.label;
+  c.fillRect(x - 3, y - 8, width, 16);
+  c.fillStyle = colors.ink;
+  c.fillText(label, x, y);
+}
+
 /** Satellites around a wireframe Earth, seen from space with north up. */
 export default function GlobeMap(p: Props) {
   const colors = skyPalette[p.theme],
     inks = globePalette[p.theme];
   const host = useRef<HTMLDivElement>(null),
-    canvas = useRef<HTMLCanvasElement>(null);
+    canvas = useRef<HTMLCanvasElement>(null),
+    overlay = useRef<HTMLCanvasElement>(null);
   const [size, setSize] = useState({ w: 800, h: 700 });
   const [hidden, setHidden] = useState<ReadonlySet<OrbitClass>>(new Set());
   // Spacecraft beyond Earth orbit are on by default; zooming out brings them into view.
@@ -174,8 +271,12 @@ export default function GlobeMap(p: Props) {
   const orbitCache = useRef(new Map<string, Orbit>());
   const moonCache = useRef<{ hour: number; path: [number, number, number][] } | null>(null);
   const frame = globeFrame(p.camera, size.w, size.h);
-  /** A selected satellite puts the globe in focus: it alone is drawn, with its orbit and line of sight. */
-  const focus = p.layers.satellite && p.selected?.satellite && p.selected.ecf ? p.selected : null;
+  /**
+   * A selected satellite puts the globe in focus: it alone is drawn, with its orbit and line of sight.
+   * With the telescope connected every satellite stays in view as a possible target.
+   */
+  const focus =
+    !p.telescope.connected && p.layers.satellite && p.selected?.satellite && p.selected.ecf ? p.selected : null;
   const satellites = useMemo(
     () => p.sky.objects.filter((o) => o.kind === "satellite" && o.ecf && o.satellite),
     [p.sky],
@@ -191,6 +292,8 @@ export default function GlobeMap(p: Props) {
         camera: p.camera, setCamera: p.setCamera, radius: frame.radius, height: size.h, select: p.select,
         // In focus, a click on empty space lets go of the satellite.
         clear: focus ? p.onClear : undefined,
+        onDoubleSelect: p.onDoubleSelect,
+        aim: p.aim,
       },
       host,
       hits,
@@ -442,7 +545,9 @@ export default function GlobeMap(p: Props) {
     // The observer, and a line of sight to the selected satellite when it is above their horizon.
     const site = unitVector(p.sky.site.lat, p.sky.site.lon),
       here = projectGlobe(f, ...site);
-    const selectedIndex = selectedSatellite ? satellites.findIndex((o) => o.id === selectedSatellite.id) : -1;
+    // Out of focus, a selected satellite is still marked among the others.
+    const marked = p.layers.satellite && p.selected?.satellite ? p.selected : null;
+    const selectedIndex = marked ? satellites.findIndex((o) => o.id === marked.id) : -1;
     const sight = selectedSatellite && sightLine(f, p.sky.site, selectedSatellite.ecf!, selectedSatellite.alt);
     if (sight) {
       c.beginPath();
@@ -521,7 +626,7 @@ export default function GlobeMap(p: Props) {
     // Labels: the selected satellite first, then the observer, deep-space craft and documented missions where they fit.
     const candidates: { label: string; x: number; y: number; selected: boolean; site?: boolean }[] = [];
     if (selectedIndex >= 0 && Number.isFinite(xs[selectedIndex]))
-      candidates.push({ label: selectedSatellite!.name, x: xs[selectedIndex], y: ys[selectedIndex], selected: true });
+      candidates.push({ label: marked!.name, x: xs[selectedIndex], y: ys[selectedIndex], selected: true });
     // Out at the Lagrange points the observer is a pixel inside the planet; a label there would only cover it.
     if (here.depth >= 0 && f.radius >= 40)
       candidates.push({ label: p.sky.site.name.toUpperCase(), x: here.x, y: here.y, selected: false, site: true });
@@ -571,6 +676,7 @@ export default function GlobeMap(p: Props) {
     p.orbits,
     p.showHighlights,
     p.selected?.id,
+    p.telescope.connected,
     p.theme,
     p.fontFamily,
     p.fontRevision,
@@ -580,6 +686,22 @@ export default function GlobeMap(p: Props) {
     deepSpace,
     deep.data,
   ]);
+
+  // The mount moves up to twenty times a second while slewing, so it is drawn on its own
+  // layer and the globe beneath is left alone.
+  useEffect(() => {
+    const el = overlay.current;
+    if (!el) return;
+    const dpr = Math.min(window.devicePixelRatio || 1, 2);
+    if (el.width !== Math.round(size.w * dpr)) el.width = Math.round(size.w * dpr);
+    if (el.height !== Math.round(size.h * dpr)) el.height = Math.round(size.h * dpr);
+    const c = el.getContext("2d");
+    if (!c) return;
+    c.setTransform(dpr, 0, 0, dpr, 0, 0);
+    c.clearRect(0, 0, size.w, size.h);
+    if (p.telescope.connected)
+      drawTelescope(c, frame, p.telescope, p.sky, size, colors, inks.halo, p.fontFamily);
+  }, [p.telescope, p.sky, p.camera, size, p.theme, p.fontFamily, p.fontRevision]);
 
   const hovered = hover?.object,
     hoveredCraft = hover?.craft;
@@ -609,6 +731,7 @@ export default function GlobeMap(p: Props) {
         role="img"
       >
         <canvas ref={canvas} />
+        <canvas ref={overlay} className="map-overlay" />
         {hovered && !drag.current && (
           <div
             role="tooltip"
@@ -626,7 +749,7 @@ export default function GlobeMap(p: Props) {
             <span>
               {hovered.alt >= 0 ? `↑ ${hovered.alt.toFixed(0)}° ABOVE YOUR HORIZON` : "↓ BELOW YOUR HORIZON"}
             </span>
-            <small>CLICK TO EXPLORE ↗</small>
+            <small>{p.aim ? "CLICK TO SLEW THE TELESCOPE ↗" : "CLICK TO EXPLORE ↗"}</small>
           </div>
         )}
         {hoveredCraft && !drag.current && (

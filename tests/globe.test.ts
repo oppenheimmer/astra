@@ -3,6 +3,7 @@ import { join } from "node:path";
 import { gstime } from "satellite.js";
 import { describe, expect, it } from "vitest";
 import {
+  boresight,
   dragCamera,
   earthFixedOrbit,
   EARTH_RADIUS_KM,
@@ -21,7 +22,7 @@ import {
 } from "../src/globe";
 import { globeCoastlines } from "../src/globe-coastlines";
 import { hitGlobe } from "../src/useGlobePointer";
-import { createSky, prepareSatellites } from "../src/sky";
+import { createSky, equatorialToHorizontal, prepareSatellites } from "../src/sky";
 import type { Catalogue, OrbitalElements, SkyObject } from "../src/types";
 
 const fixture = JSON.parse(readFileSync(join(process.cwd(), "public/data/satellites.json"), "utf8"));
@@ -176,6 +177,34 @@ describe("Satellites on the globe", () => {
     expect(sightLine(side, { lat: 90, lon: 0 }, above, 90)).not.toBeNull();
     // An observer on the far side gets no line, even with the satellite in view beyond the limb.
     expect(sightLine(side, { lat: 0, lon: 180 }, { x: -2 * EARTH_RADIUS_KM, y: 2 * EARTH_RADIUS_KM, z: 0 }, 30)).toBeNull();
+  });
+
+  it("points the telescope's line by altitude and azimuth, into the ground below the horizon", () => {
+    const at = (path: Float64Array, i: number) => Array.from(path.slice(i * 3, i * 3 + 3));
+    const near = (a: number[], b: number[]) => a.forEach((v, k) => expect(v).toBeCloseTo(b[k], 9));
+    const { right: east, up: north, out: up } = globeFrame({ lat: site.lat, lon: site.lon, zoom: 1 }, 0, 0);
+    // It starts at the observer and runs straight up, north along the horizon, or east along it.
+    const zenith = boresight(site, 0, 90, 2, 4);
+    near(at(zenith, 0), up);
+    near(at(zenith, 4), up.map((v) => 3 * v));
+    near(at(boresight(site, 0, 0, 1, 1), 1), up.map((v, k) => v + north[k]));
+    near(at(boresight(site, 90, 0, 1, 1), 1), up.map((v, k) => v + east[k]));
+    // A mount still tracking a satellite that has set points down into the planet.
+    expect(Math.hypot(...at(boresight(site, 180, -30, 1, 8), 1))).toBeLessThan(1);
+  });
+
+  it("ends the telescope's line at the satellite it tracks, above or below the horizon", () => {
+    const tracked = sky.objects.filter((o) => o.ecf && o.range);
+    expect(tracked.some((o) => o.alt > 0) && tracked.some((o) => o.alt < 0)).toBe(true);
+    let worst = 0;
+    for (const o of tracked) {
+      // As the globe draws it: the mount's equatorial pointing, turned back to the observer's sky.
+      const h = equatorialToHorizontal(o.ra, o.dec, time, site);
+      const end = boresight(site, h.az, h.alt, o.range! / EARTH_RADIUS_KM).slice(-3);
+      worst = Math.max(worst, Math.hypot(end[0] * EARTH_RADIUS_KM - o.ecf!.x, end[1] * EARTH_RADIUS_KM - o.ecf!.y, end[2] * EARTH_RADIUS_KM - o.ecf!.z));
+    }
+    // The globe stands the observer on a sphere; on the ellipsoid Greenwich lies about 25 km from there.
+    expect(worst).toBeLessThan(40);
   });
 
   it("classifies orbits by regime, with stations and Starlink split out", () => {

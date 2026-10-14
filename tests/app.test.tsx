@@ -353,6 +353,42 @@ describe("Starmap desk", () => {
     expect(screen.getByText("SIMULATOR READY")).toBeTruthy();
   });
 
+  it("drives the telescope from the globe without leaving it", async () => {
+    await mount();
+    fireEvent.click(screen.getByRole("button", { name: "GLOBE" }));
+    await screen.findByRole("group", { name: "Satellite classes" }, { timeout: 15000 });
+    fireEvent.click(screen.getByRole("button", { name: "TELESCOPE" }));
+    fireEvent.click(await screen.findByRole("button", { name: /CONNECT SIMULATOR/ }));
+    expect(screen.getByText(/^SCOPE AZ [\d.]+° ALT [\d.]+°$/)).toBeTruthy();
+    expect(screen.getByText(/DOUBLE-CLICK A SATELLITE TO SLEW/)).toBeTruthy();
+    // With the telescope on, a selected satellite leaves the others in view as targets.
+    const search = screen.getByLabelText("Search sky objects");
+    fireEvent.change(search, { target: { value: "ISS (ZARYA)" } });
+    await screen.findByRole("button", { name: /ISS \(ZARYA\)/ });
+    fireEvent.keyDown(search, { key: "Enter" });
+    await waitFor(() => expect(heading()).toBe("ISS (ZARYA)"));
+    expect(screen.getByText("58.5° BELOW HORIZON")).toBeTruthy();
+    expect(screen.getByRole("group", { name: "Satellite classes" })).toBeTruthy();
+    expect(screen.queryByRole("group", { name: "Selected satellite" })).toBeNull();
+    expect(screen.getByRole("button", { name: /CENTRE ON SCOPE/ })).toBeTruthy();
+
+    // Placing a target keeps to the globe, where a target is a satellite.
+    fireEvent.click(screen.getByRole("button", { name: /PLACE TARGET/ }));
+    expect(screen.getByRole("button", { name: "GLOBE" }).getAttribute("aria-pressed")).toBe("true");
+    expect(screen.getByText("CLICK A SATELLITE TO SLEW THE TELESCOPE")).toBeTruthy();
+    const globe = screen.getByRole("img", { name: /Globe of Earth/ });
+    const click = (x: number, y: number) => {
+      fireEvent.pointerDown(globe, { clientX: x, clientY: y, pointerId: 1 });
+      fireEvent.pointerUp(globe, { clientX: x, clientY: y, pointerId: 1 });
+    };
+    click(5, 5);
+    expect(screen.getByText(/Choose a satellite to slew to/)).toBeTruthy();
+    // The search turned the globe to put the ISS in the middle of its 800 × 700 chart. It has
+    // set at this hour, so the simulator turns the slew down.
+    click(400, 350);
+    expect(screen.getByText(/That target is below the horizon/)).toBeTruthy();
+  });
+
   it("disables saving during manual elevation lookup and persists its completed result", async () => {
     let resolve!: (response: ReturnType<typeof respond>) => void;
     vi.stubGlobal("fetch", vi.fn((url: string) => url.startsWith("/api/elevation")

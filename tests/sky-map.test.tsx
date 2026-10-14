@@ -5,6 +5,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { createProjector, project, unproject } from "../src/projection";
 import { hitSkyObject, type PlottedObject } from "../src/sky-map-hit-testing";
 import { drawSkyObjects } from "../src/sky-map-layers";
+import { useGlobePointer } from "../src/useGlobePointer";
 import { useSkyMapPointer } from "../src/useSkyMapPointer";
 import { skyPalette } from "../src/theme";
 import type { Sky, SkyObject, Telescope, TerrainProfile, View } from "../src/types";
@@ -232,5 +233,61 @@ describe("Sky map pointer interactions", () => {
     const expected = unproject(430, 380, initialView, 400, 350, 300)!;
     expect(f.aim).toHaveBeenCalledWith(expected.az, expected.alt);
     expect(f.select).not.toHaveBeenCalled();
+  });
+});
+
+function mountGlobePointer(options: Pick<Parameters<typeof useGlobePointer>[0], "aim" | "onDoubleSelect" | "clear"> = {}) {
+  const host = document.createElement("div");
+  host.setPointerCapture = vi.fn();
+  host.getBoundingClientRect = () => ({ left: 10, top: 20, width: 800, height: 700 }) as DOMRect;
+  // One satellite drawn at the middle of the globe.
+  const hits = { current: { objects: [object], xs: new Float32Array([400]), ys: new Float32Array([350]) } };
+  const select = vi.fn();
+  const rendered = renderHook(() =>
+    useGlobePointer(
+      { camera: { lat: 0, lon: 0, zoom: 0.55 }, setCamera: vi.fn(), radius: 200, height: 700, select, ...options },
+      { current: host },
+      hits,
+    ),
+  );
+  const click = (x: number, y = 350, type = "mouse") => act(() => {
+    rendered.result.current.pointerDown(pointer(x, y, 1, type));
+    rendered.result.current.pointerUp(pointer(x, y, 1, type));
+  });
+  return { click, select };
+}
+
+describe("Globe pointer interactions", () => {
+  it("reports a quick second click or tap on the same satellite as a double select", () => {
+    const now = vi.spyOn(performance, "now").mockReturnValue(1000);
+    const onDoubleSelect = vi.fn();
+    const f = mountGlobePointer({ onDoubleSelect });
+    f.click(400);
+    expect(f.select).toHaveBeenCalledWith(object);
+    expect(onDoubleSelect).not.toHaveBeenCalled();
+    now.mockReturnValue(1300);
+    f.click(405, 350, "touch");
+    expect(onDoubleSelect).toHaveBeenCalledWith(object);
+    // Too slow a repeat is two single clicks.
+    now.mockReturnValue(2000);
+    f.click(400);
+    now.mockReturnValue(2500);
+    f.click(400);
+    expect(onDoubleSelect).toHaveBeenCalledTimes(1);
+    now.mockRestore();
+  });
+
+  it("hands clicks to the telescope while a target is being placed", () => {
+    const aim = vi.fn(), clear = vi.fn(), onDoubleSelect = vi.fn();
+    const f = mountGlobePointer({ aim, clear, onDoubleSelect });
+    f.click(400);
+    f.click(400);
+    expect(aim).toHaveBeenNthCalledWith(1, object);
+    expect(aim).toHaveBeenNthCalledWith(2, object);
+    f.click(100, 100);
+    expect(aim).toHaveBeenLastCalledWith(null);
+    expect(f.select).not.toHaveBeenCalled();
+    expect(clear).not.toHaveBeenCalled();
+    expect(onDoubleSelect).not.toHaveBeenCalled();
   });
 });
