@@ -69,11 +69,6 @@ export const INACTIVE_DATA_URL =
 export const DEEP_SPACE_DATA_URL =
   "https://sky-data.globe-climatesim.workers.dev/deep-space.json";
 
-/** Enough of a payload to plot: elements that parse, with a timestamp to age them against. */
-export function validSatelliteData(data: unknown): boolean {
-  return parseSatelliteData(data) !== null;
-}
-
 async function satellitesFrom(source: () => Promise<unknown>) {
   const data = parseSatelliteData(await source());
   if (!data) throw Error("Invalid orbital data.");

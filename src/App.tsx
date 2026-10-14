@@ -23,7 +23,6 @@ import {
   saveStarMagnitude,
   saveTheme,
 } from "./preferences";
-import { observerHeight } from "./sites";
 import { deepFieldLimit, DEEP_MAGNITUDE, OVERVIEW_MAGNITUDE, mergeStars } from "./star-catalogue";
 import { horizonAltitude } from "./terrain";
 import { LayerSymbol, layerLabels, SectionTitle, signature, type LayerKey } from "./ui";

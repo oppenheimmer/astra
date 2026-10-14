@@ -11,7 +11,6 @@ import {
   getJSON,
   fetchSatellites,
   validDeepStars,
-  validSatelliteData,
 } from "../src/api";
 
 const orbital = {
@@ -126,12 +125,12 @@ describe("API client", () => {
 
   it("rejects orbital payloads that cannot be propagated", () => {
     const ok = { fetchedAt: "2026-09-09T05:00:00Z", source: "CelesTrak", elements: [orbital] };
-    expect(validSatelliteData(ok)).toBe(true);
-    expect(validSatelliteData({ ...ok, elements: [] })).toBe(false);
-    expect(validSatelliteData({ ...ok, fetchedAt: undefined })).toBe(false);
-    expect(validSatelliteData({ ...ok, elements: [{ NORAD_CAT_ID: 1 }] })).toBe(false);
-    expect(validSatelliteData({ ...ok, elements: [{ EPOCH: "t" }] })).toBe(false);
-    expect(validSatelliteData(null)).toBe(false);
+    expect(parseSatelliteData(ok)).not.toBeNull();
+    expect(parseSatelliteData({ ...ok, elements: [] })).toBeNull();
+    expect(parseSatelliteData({ ...ok, fetchedAt: undefined })).toBeNull();
+    expect(parseSatelliteData({ ...ok, elements: [{ NORAD_CAT_ID: 1 }] })).toBeNull();
+    expect(parseSatelliteData({ ...ok, elements: [{ EPOCH: "t" }] })).toBeNull();
+    expect(parseSatelliteData(null)).toBeNull();
   });
 
   it("normalizes IDs and epoch offsets without changing the source response", () => {

@@ -24,7 +24,6 @@ from .upstream import HEADERS
 
 SOURCE = 'SatNOGS DB'
 API = 'https://db.satnogs.org/api'
-SATELLITE_PAGE = 'https://db.satnogs.org/satellite/'
 # Older elements are of no use to the chart, which stops drawing three days from
 # an epoch; a fortnight leaves room to look back without publishing dead weight.
 MAX_TLE_AGE_DAYS = 14

@@ -108,10 +108,3 @@ export function satellitePass(
   cache.set(sat, sites);
   return pass;
 }
-
-export function splitPass(pass: SatellitePass, current: TrackPoint) {
-  return {
-    past: [...pass.points.filter((p) => p.time < current.time), current],
-    future: [current, ...pass.points.filter((p) => p.time > current.time)],
-  };
-}

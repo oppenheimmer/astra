@@ -118,30 +118,6 @@
   pointer-events: none;
   font-size: 10px;
 }
-.scope-strip {
-  display: none;
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  padding: 0;
-  align-items: end;
-  gap: 12px;
-  flex-direction: row;
-}
-.has-telescope .scope-strip {
-  display: flex;
-}
-.has-telescope .map-caption {
-  bottom: 43px;
-}
-.scope-strip .eyebrow {
-  font-size: 10px;
-}
-.scope-strip strong {
-  font-size: 10px;
-  margin-top: 4px;
-}
 .scope-actions {
   width: auto;
   gap: 6px;
@@ -157,9 +133,6 @@
 .daylight-note {
   bottom: 23px;
   font-size: 10px;
-}
-.has-telescope .daylight-note {
-  bottom: 63px;
 }
 .time-deck {
   min-height: 44px;
@@ -200,14 +173,6 @@
 }
 .galaxy-marker-core {
   fill: var(--ink);
-}
-.galaxy-caption {
-  display: flex;
-  justify-content: space-between;
-  gap: 10px;
-  padding: 7px 0 0;
-  color: var(--muted);
-  font-size: 10px;
 }
 .context-diagram .galaxy-label {
   font-size: 10px;
@@ -259,9 +224,6 @@
     font-size: 10px;
     padding: 5px;
   }
-  .scope-strip strong {
-    font-size: 10px;
-  }
   .map-caption span + span {
     display: none;
   }
@@ -277,21 +239,6 @@
   .masthead {
     grid-template-columns: 196px 1fr 236px;
     gap: 12px;
-  }
-  .scope-strip {
-    align-items: start;
-    flex-direction: column;
-    gap: 6px;
-  }
-  .scope-strip .eyebrow {
-    display: none;
-  }
-  .has-telescope .map-caption {
-    bottom: 54px;
-    font-size: 10px;
-  }
-  .has-telescope .zoom-controls {
-    bottom: 75px;
   }
   .search-box {
     width: calc(100% - 272px);
@@ -366,38 +313,14 @@
   .map-caption {
     font-size: 10px;
   }
-  .scope-strip {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 7px;
-  }
-  .scope-strip > div:first-child {
-    display: flex;
-    align-items: baseline;
-    justify-content: space-between;
-    gap: 10px;
-  }
-  .scope-strip strong {
-    margin: 0;
-  }
   .scope-actions {
     width: 100%;
   }
   .scope-actions button {
     flex: 1;
   }
-  .has-telescope .map-caption {
-    bottom: 58px;
-  }
   .zoom-controls {
     bottom: 35px;
-  }
-  .has-telescope .zoom-controls {
-    bottom: 76px;
-  }
-  .has-telescope .daylight-note {
-    bottom: 76px;
-    font-size: 10px;
   }
   .time-deck {
     height: 80px;
@@ -481,15 +404,6 @@
 }
 .personal-stage .daylight-note {
   bottom: 65px;
-}
-.personal-stage.has-telescope .heading-controls {
-  bottom: 64px;
-}
-.personal-stage.has-telescope .zoom-controls {
-  bottom: 148px;
-}
-.personal-stage.has-telescope .daylight-note {
-  bottom: 103px;
 }
 @media (max-width: 1000px) {
   .view-switch button {

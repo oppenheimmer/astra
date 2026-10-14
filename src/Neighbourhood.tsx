@@ -7,7 +7,6 @@ import {
   solarPositions,
   satellitePosition,
 } from "./sky";
-import { RAD } from "./projection";
 import GalaxyDrawing from "./GalaxyDrawing";
 
 const galaxyPoint = (s: { x: number; y: number; z: number }) => ({

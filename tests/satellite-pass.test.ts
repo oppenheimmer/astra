@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { prepareSatellites, satellitePosition } from "../src/sky";
-import { satellitePass, splitPass } from "../src/satellite-pass";
+import { satellitePass } from "../src/satellite-pass";
 import { angularDistance } from "../src/projection";
 
 const data = JSON.parse(
@@ -48,18 +48,11 @@ describe("Full satellite pass", () => {
       ).toBeLessThanOrEqual(1.501);
     }
   });
-  it("reuses the pass while splitting solid and dashed paths exactly at the current satellite", () => {
+  it("reuses the pass, which rises from the horizon and sets back to it", () => {
     const pass = satellitePass(visible, time, site);
     expect(satellitePass(visible, time + 1000, site)).toBe(pass);
-    const current = {
-      time: time + 1000,
-      ...satellitePosition(visible, new Date(time + 1000), site)!,
-    };
-    const paths = splitPass(pass, current);
-    expect(paths.past.at(-1)).toBe(current);
-    expect(paths.future[0]).toBe(current);
-    expect(paths.past[0].alt).toBe(0);
-    expect(paths.future.at(-1)!.alt).toBe(0);
+    expect(pass.points[0].alt).toBe(0);
+    expect(pass.points.at(-1)!.alt).toBe(0);
   });
   it("does not invent a pass for an object below the horizon", () => {
     const below = satellites.find(
